@@ -1,287 +1,385 @@
-#SEISMIC AP Data Cleaning
+#SEISMIC AP - Variable Conversion
+#### Setup ####
+# Load packages and data
 if (!require("pacman")) install.packages("pacman")
 library(pacman)
-pacman::p_load("tidyverse", "data.table", "psych", "summarytools", "haven", "Hmisc")
+pacman::p_load("tidyverse")
 
-# IMPORT DATASETS ####
-df_grades <- read.csv("2191_MATH_StudentGrades.csv")
-df_dist <- read.csv("2191_GradeDistALL.csv")
-df_stable <- read.csv("2191_MATH_StudentStable.csv")
-df_tests <- read.csv("2191_MATH_StudentTests.csv")
+# Functions and settings ####
+# Use dplyr for 'select'
+select <- dplyr::select
 
-# CLEAN DATASETS ####
-df_dist <- select(df_dist, -USERNAME_H, -EMPLID_H)
-
-#Remove duplicate observations
-df_stable_unq <- distinct(df_stable)
-
-#Reshape wide and subset to only AP Tests
-df_tests_ap <- df_tests %>%
-  subset(TEST_ID == "AP") %>%
-  select(EMPLID_H, TEST_COMPONENT, SCORE) %>%
-  mutate(AP_CRED = 1) %>%
-  group_by(EMPLID_H,TEST_COMPONENT,add = TRUE) %>%
-  summarize(SCORE = max(SCORE)) %>%
-  spread(TEST_COMPONENT,SCORE)
-
-df_tests_ap <- df_tests_ap %>%
-  select(EMPLID_H, BY, CH, PY1, PY2, PHCE, PHCM, MAB, MBC)
-
-# MERGE DATASETS ####
-df_grade_dist <- df_grades %>%
-  inner_join(df_dist, by =c("SUBJECT_CD", "CATALOG_NBR", "CLASS_TITLE", "TERM_CD", "CLASS_NBR"))
-
-df_full <- df_stable %>%
-  select(-USERNAME_H, -COURSE_TYPE, -FIRST_GENERATION_DESCR) %>%
-  inner_join(df_grade_dist, by="EMPLID_H") %>%
-  inner_join(df_tests_ap, by="EMPLID_H")
-  
-
-#Replace ID as string
+# Load FULL MERGED Dataframe ####
+df_full <- read.csv("2191_MATH_FULL.csv")     
 df_full <- df_full %>%
-  mutate_if(is.factor, as.character)
-
-#Remove Unecessary Data Frames
-rm(df_dist, df_grades, df_grade_dist, df_stable, df_stable_unq, df_tests, df_tests_ap)
-
-#Write FULL dataframe to .csv
-write.csv(df_full, file = "2191_MATH_FULL.csv")
-
-
-
-#===================================#
-# >>>> ANALYSES START HERE! <<<< ####
-#Load FULL Dataframe
-df_full <- read.csv("2191_MATH_FULL.csv")
+  filter(CAMPUS_CD == "PIT")           # TOTAL N = 670191
 names(df_full)
 
-# INCLUSION/EXCLUSION CRITERIA ####
-df_sub <- df_full %>%
-  subset(FIRST_TIME_FRESHMAN == "Y") %>%
-  subset(CITIZENSHIP_STATUS_DESCR == "U.S. Citizen") %>%
-  subset(TOT_TRNSFR_CREDITS <= 16) %>%
-  subset(START_TRM_CD >= 2144) %>%
-  subset(CAMPUS_CD == "PIT")
-
-# GENERATE VARIABLES ####
-#Demographics
-df_sub <- df_sub %>%
-  mutate(FEMALE = recode(GENDER_CD, "F"=1, "M"=0, "m"=0, "U" = 2)) %>%
-  mutate(FG = recode(FIRST_GENERATION_DESCR, "First Generation" = 1, "Not First Generation" = 0)) %>%
-  mutate(RACE_ETHNICITY = recode(ETHNIC_GROUP_CD, "HISPA" = 1, "BLACK" = 1, "AMIND" = 1, "PACIF" = 1, "ASIAN" = 2, "WHITE" = 0)) %>%
-  mutate(URM = recode(ETHNIC_GROUP_CD, "HISPA" = 1, "BLACK" = 1, "AMIND" = 1, "PACIF" = 1, "ASIAN" = 0, "WHITE" = 0)) %>%
-  mutate(AGI = abs(AGI)) %>%
-  mutate(LOW_INCOME = if_else(AGI <= 46435, 1, 0)) %>%
-  mutate(ELL = if_else(TOEFL_SCORE > 0, 0, 1))
-
-#AP Credits
-df_sub <- df_sub %>%
-  mutate(BY_CR = ifelse(is.na(BY), 0, 1)) %>%
-  mutate(CH_CR = ifelse(is.na(CH), 0, 1)) %>%
-  mutate(PY1_CR = ifelse(is.na(PY1), 0, 1)) %>%
-  mutate(PY2_CR = ifelse(is.na(PY2), 0, 1)) %>%
-  mutate(PHCE_CR = ifelse(is.na(PHCE), 0, 1)) %>%
-  mutate(PHCM_CR = ifelse(is.na(PHCM), 0, 1)) %>%
-  mutate(MAB_CR = ifelse(is.na(MAB), 0, 1)) %>%
-  mutate(MBC_CR = ifelse(is.na(MBC), 0, 1))
-
-#AP Credits
-df_sub <- df_sub %>%
-  mutate(BIO1_SK = ifelse(BY >= 4 & !is.na(BY), 1, 0)) %>%
-  mutate(BIO2_SK = ifelse(BY == 5 & !is.na(BY), 1, 0)) %>%
-  mutate(GCHEM1_SK = ifelse(CH >= 3 & !is.na(CH), 1, 0)) %>%
-  mutate(GCHEM1_SK = ifelse(CH == 5 & !is.na(CH), 1, 0)) %>%
-  mutate(PHYS1_SK_CE = ifelse(PHCE == 5 & !is.na(PHCE), 1,0)) %>%
-  mutate(PHYS1_SK_CM = ifelse(PHCM == 5  & !is.na(PHCM), 1, 0))
-
-#STD Course Terms
-df_sub <- df_sub %>%
+#### CLEANING ####
+## STABLE - Student Level ####
+df_std <- df_full %>%
+  # Rename variables
+  mutate(st_id = EMPLID_H) %>%
+  mutate(firstgen = recode(FIRST_GENERATION_DESCR, "First Generation" = 1, "Not First Generation" = 0, "Unknown" = 0)) %>%
+  mutate(ethniccode = ETHNIC_GROUP_CD) %>%
+  mutate(ethniccode_cat = recode(ETHNIC_GROUP_CD, "HISPA" = 1, "BLACK" = 1, "AMIND" = 1, "PACIF" = 1, "ASIAN" = 2, "WHITE" = 0)) %>%
+  mutate(urm = recode(ETHNIC_GROUP_CD, "HISPA" = 1, "BLACK" = 1, "AMIND" = 1, "PACIF" = 1, "ASIAN" = 0, "WHITE" = 0)) %>%
+  mutate(gender = recode(GENDER_CD, "F"=1, "M"=0, "m"=0, "U" = 2)) %>%
+  mutate(female = recode(GENDER_CD, "F"=1, "M"=0, "m"=0, "U" = 2)) %>%
+  mutate(famincome = abs(AGI)) %>%
+  mutate(lowincomflag = if_else(is.na(AGI), 0,
+                                if_else(AGI <= 46435, 1,0))) %>%
+  mutate(transfer = if_else(TOT_TRNSFR_CREDITS <= 16 | is.na(TOT_TRNSFR_CREDITS), 0, 1)) %>%
+  mutate(international = if_else(CITIZENSHIP_STATUS_DESCR == "U.S. Citizen", 0, 1)) %>%
+  mutate(ell = if_else(TOEFL_SCORE > 0, 0, 1)) %>%
+  mutate(us_hs = if_else(is.na(HS_GPA), 0, 1)) %>%
   separate(as.character("START_TRM_CD"), c("YEAR", "SEMESTER"), 3, remove = FALSE) %>%
   separate(as.character("YEAR"), c("DEC", "YEAR"), 1) %>%
+  mutate(cohort = as.numeric(YEAR)) %>%
+  mutate(cohort = ifelse(cohort >= 20, cohort + 1900, cohort + 2000)) %>%
+  mutate(cohort_2013 = ifelse(cohort == 2013, 1,0)) %>%
+  mutate(cohort_2014 = ifelse(cohort == 2014, 1,0)) %>%
+  mutate(cohort_2015 = ifelse(cohort == 2015, 1,0)) %>%
+  mutate(cohort_2016 = ifelse(cohort == 2016, 1,0)) %>%
+  mutate(cohort_2017 = ifelse(cohort == 2017, 1,0)) %>%
+  mutate(cohort_2018 = ifelse(cohort == 2018, 1,0)) %>%
+  #HACK for apyear (cohort year - 1)
+  mutate(apyear = cohort - 1) %>%
+  mutate(englsr = if_else(ACT_HIGH_MATH == 36, 800,
+                          if_else(ACT_HIGH_MATH == 35, 780,
+                                  if_else(ACT_HIGH_MATH == 34, 760,
+                                          if_else(ACT_HIGH_MATH == 33, 740,
+                                                  if_else(ACT_HIGH_MATH == 32,	720,
+                                                          if_else(ACT_HIGH_MATH == 31,	710,
+                                                                  if_else(ACT_HIGH_MATH == 30,	700,
+                                                                          if_else(ACT_HIGH_MATH == 29,	680,
+                                                                                  if_else(ACT_HIGH_MATH == 28,	660,
+                                                                                          if_else(ACT_HIGH_MATH == 27,	640,
+                                                                                                  if_else(ACT_HIGH_MATH == 26,	610,
+                                                                                                          if_else(ACT_HIGH_MATH == 25,	590,
+                                                                                                                  if_else(ACT_HIGH_MATH == 24,	580,
+                                                                                                                          if_else(ACT_HIGH_MATH == 23,	560,
+                                                                                                                                  if_else(ACT_HIGH_MATH == 22,	540,
+                                                                                                                                          if_else(ACT_HIGH_MATH == 21,	530,
+                                                                                                                                                  if_else(ACT_HIGH_MATH == 20,	520,
+                                                                                                                                                          if_else(ACT_HIGH_MATH == 19,	510,
+                                                                                                                                                                  if_else(ACT_HIGH_MATH == 18,	500,
+                                                                                                                                                                          if_else(ACT_HIGH_MATH == 17,	470,                                                                                                                                                                                                if_else(ACT_HIGH_MATH == 16	, 430,
+                                                                                                                                                                                                                                                                                                                                                                                                                   if_else(ACT_HIGH_MATH == 15	, 400,
+                                                                                                                                                                                                                                                                                                                                                                                                                           if_else(ACT_HIGH_MATH == 14	, 360,
+                                                                                                                                                                                                                                                                                                                                                                                                                                   if_else(ACT_HIGH_MATH == 13	, 330,
+                                                                                                                                                                                                                                                                                                                                                                                                                                           if_else(ACT_HIGH_MATH == 12,	310,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                   if_else(ACT_HIGH_MATH == 11,	280,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                           if_else(ACT_HIGH_MATH == 10,	260, NaN )))))))))))))))))))))))))))) %>%
+  mutate(englsr = ifelse(SAT_HIGH_VERBAL %in% NA, englsr, SAT_HIGH_VERBAL)) %>%
+  mutate(mathsr = if_else(ACT_HIGH_MATH == 36, 800,
+                          if_else(ACT_HIGH_MATH == 35, 780,
+                                  if_else(ACT_HIGH_MATH == 34, 760,
+                                          if_else(ACT_HIGH_MATH == 33, 740,
+                                                  if_else(ACT_HIGH_MATH == 32,	720,
+                                                          if_else(ACT_HIGH_MATH == 31,	710,
+                                                                  if_else(ACT_HIGH_MATH == 30,	700,
+                                                                          if_else(ACT_HIGH_MATH == 29,	680,
+                                                                                  if_else(ACT_HIGH_MATH == 28,	660,
+                                                                                          if_else(ACT_HIGH_MATH == 27,	640,
+                                                                                                  if_else(ACT_HIGH_MATH == 26,	610,
+                                                                                                          if_else(ACT_HIGH_MATH == 25,	590,
+                                                                                                                  if_else(ACT_HIGH_MATH == 24,	580,
+                                                                                                                          if_else(ACT_HIGH_MATH == 23,	560,
+                                                                                                                                  if_else(ACT_HIGH_MATH == 22,	540,
+                                                                                                                                          if_else(ACT_HIGH_MATH == 21,	530,
+                                                                                                                                                  if_else(ACT_HIGH_MATH == 20,	520,
+                                                                                                                                                          if_else(ACT_HIGH_MATH == 19,	510,
+                                                                                                                                                                  if_else(ACT_HIGH_MATH == 18,	500,
+                                                                                                                                                                          if_else(ACT_HIGH_MATH == 17,	470,
+                                                                                                                                                                                  if_else(ACT_HIGH_MATH == 16	, 430,
+                                                                                                                                                                                          if_else(ACT_HIGH_MATH == 15	, 400,
+                                                                                                                                                                                                  if_else(ACT_HIGH_MATH == 14	, 360,
+                                                                                                                                                                                                          if_else(ACT_HIGH_MATH == 13	, 330,
+                                                                                                                                                                                                                  if_else(ACT_HIGH_MATH == 12,	310,
+                                                                                                                                                                                                                          if_else(ACT_HIGH_MATH == 11,	280,
+                                                                                                                                                                                                                                  if_else(ACT_HIGH_MATH == 10,	260, NaN )))))))))))))))))))))))))))) %>%
+  mutate(mathsr = ifelse(SAT_HIGH_MATH %in% NA, mathsr, SAT_HIGH_MATH)) %>%
+  mutate(hsgpa = HS_GPA) %>%
+  # Select only common-named variables used in analysis
+  select(st_id, firstgen:hsgpa) %>%
+  # Remove any duplicate cases
+  distinct()
+
+write.csv(df_std, file = "SEISMIC_AP_STUDENT_CLEAN.csv")          #UNIQUE N = 22976
+
+#### Course Level ####
+df_crs <- df_full %>%
+  # Rename variables
+  mutate(st_id = EMPLID_H) %>%
+  mutate(crs_sbj = SUBJECT_CD) %>%
+  mutate(crs_catalog = CATALOG_NBR) %>%
+  mutate(crs_name	= CLASS_TITLE) %>%
+  mutate(numgrade = GRADE_POINTS/UNITS_TAKEN) %>%
+  mutate(numgrade_w = if_else(COURSE_GRADE_CD == "W", 1, 0)) %>%
+  mutate(crs_retake = REPEAT_CD) %>%
+  mutate(crs_term	= TERM_CD) %>%
+  mutate(summer_crs = if_else(endsWith(as.character(TERM_CD),"7"), 1, 0)) %>%
   mutate(TERM_REF = START_TRM_CD-TERM_CD) %>%
-  mutate(TERM_STD = if_else(SEMESTER == "1" & TERM_REF == "0", 1,
-                                          if_else(TERM_REF == -3, 1.5,
-                                          if_else(TERM_REF == -6, 1.66,
-                                          if_else(TERM_REF == -10, 2,
-                                          if_else(TERM_REF == -13, 2.5,
-                                          if_else(TERM_REF == -16, 2.66,
-                                          if_else(TERM_REF == -20, 3,
-                                          if_else(TERM_REF == -23, 3.5,
-                                          if_else(TERM_REF == -26, 3.66,
-                                          if_else(TERM_REF == -30, 4,
-                                          if_else(TERM_REF == -33, 4.5,
-                                          if_else(TERM_REF == -36, 4.66, 
-                      if_else(SEMESTER == "4" & TERM_REF == "0", 1,
-                                          if_else(TERM_REF == -3, 1.5,
-                                          if_else(TERM_REF == -7, 1.66,
-                                          if_else(TERM_REF == -10, 2,
-                                          if_else(TERM_REF == -13, 2.5,
-                                          if_else(TERM_REF == -17, 2.66,
-                                          if_else(TERM_REF == -20, 3,
-                                          if_else(TERM_REF == -23, 3.5,
-                                          if_else(TERM_REF == -27, 3.66,
-                                          if_else(TERM_REF == -30, 4,
-                                          if_else(TERM_REF == -33, 4.5,
-                                          if_else(TERM_REF == -37, 4.66, 
-                      if_else(SEMESTER == "7" & TERM_REF == "0", 1,
-                                          if_else(TERM_REF == -4, 1.5,
-                                          if_else(TERM_REF == -7, 1.66,
-                                          if_else(TERM_REF == -10, 2,
-                                          if_else(TERM_REF == -14, 2.5,
-                                          if_else(TERM_REF == -17, 2.66,
-                                          if_else(TERM_REF == -20, 3,
-                                          if_else(TERM_REF == -24, 3.5,
-                                          if_else(TERM_REF == -26, 3.66,
-                                          if_else(TERM_REF == -30, 4,
-                                          if_else(TERM_REF == -34, 4.5,
-                                          if_else(TERM_REF == -36, 4.66, NaN )))))))))))))
-                                          )))))))))))))
-                                          )))))))))))
-                            
+  separate(as.character("START_TRM_CD"), c("YEAR", "SEMESTER"), 3, remove = FALSE) %>%
+  separate(as.character("YEAR"), c("DEC", "YEAR"), 1) %>%
+  mutate(enrl_from_cohort = if_else(SEMESTER == "1" & TERM_REF == "0", 1,
+                                    if_else(TERM_REF == -3, 1.5,
+                                            if_else(TERM_REF == -6, 1.66,
+                                                    if_else(TERM_REF == -10, 2,
+                                                            if_else(TERM_REF == -13, 2.5,
+                                                                    if_else(TERM_REF == -16, 2.66,
+                                                                            if_else(TERM_REF == -20, 3,
+                                                                                    if_else(TERM_REF == -23, 3.5,
+                                                                                            if_else(TERM_REF == -26, 3.66,
+                                                                                                    if_else(TERM_REF == -30, 4,
+                                                                                                            if_else(TERM_REF == -33, 4.5,
+                                                                                                                    if_else(TERM_REF == -36, 4.66, 
+                                                                                                                            if_else(SEMESTER == "4" & TERM_REF == "0", 1,
+                                                                                                                                    if_else(TERM_REF == -3, 1.5,
+                                                                                                                                            if_else(TERM_REF == -7, 1.66,
+                                                                                                                                                    if_else(TERM_REF == -10, 2,
+                                                                                                                                                            if_else(TERM_REF == -13, 2.5,
+                                                                                                                                                                    if_else(TERM_REF == -17, 2.66,
+                                                                                                                                                                            if_else(TERM_REF == -20, 3,
+                                                                                                                                                                                    if_else(TERM_REF == -23, 3.5,
+                                                                                                                                                                                            if_else(TERM_REF == -27, 3.66,
+                                                                                                                                                                                                    if_else(TERM_REF == -30, 4,
+                                                                                                                                                                                                            if_else(TERM_REF == -33, 4.5,
+                                                                                                                                                                                                                    if_else(TERM_REF == -37, 4.66, 
+                                                                                                                                                                                                                            if_else(SEMESTER == "7" & TERM_REF == "0", 1,
+                                                                                                                                                                                                                                    if_else(TERM_REF == -4, 1.5,
+                                                                                                                                                                                                                                            if_else(TERM_REF == -7, 1.66,
+                                                                                                                                                                                                                                                    if_else(TERM_REF == -10, 2,
+                                                                                                                                                                                                                                                            if_else(TERM_REF == -14, 2.5,
+                                                                                                                                                                                                                                                                    if_else(TERM_REF == -17, 2.66,
+                                                                                                                                                                                                                                                                            if_else(TERM_REF == -20, 3,
+                                                                                                                                                                                                                                                                                    if_else(TERM_REF == -24, 3.5,
+                                                                                                                                                                                                                                                                                            if_else(TERM_REF == -26, 3.66,
+                                                                                                                                                                                                                                                                                                    if_else(TERM_REF == -30, 4,
+                                                                                                                                                                                                                                                                                                            if_else(TERM_REF == -34, 4.5,
+                                                                                                                                                                                                                                                                                                                    if_else(TERM_REF == -36, 4.66, NaN ))))))))))))))))))))))))))))))))))))) %>%
+  #mutate(gpao = ?) %>%
+  #mutate(begin_term_cum_gpa = ?) %>%
+  mutate(crs_credits = UNITS_TAKEN) %>%
+  #mutate(instructor_name = NA) %>%
+  mutate(crs_component= CLASS_COMPONENT_DESCR) %>%
+  mutate(class_number	= CLASS_NBR) %>%
+  mutate(current_major = ACADEMIC_SUBPLAN_DESCR) %>%
+  # Select only common-named variables used in analysis
+  select(st_id, crs_sbj:current_major)
 
-#Course Enrolled
-df_sub <- df_sub %>%
-  mutate(PHYS1 = ifelse(
-    SUBJECT_CD == "PHYS" & CATALOG_NBR == "0174" & COURSE_GRADE_CD != "W", 1, 0)) %>%
-  mutate(PHYS2 = ifelse(
-    SUBJECT_CD == "PHYS" & CATALOG_NBR == "0175" & COURSE_GRADE_CD != "W", 1, 0)) %>%
-  mutate(GCHEM1 = ifelse(
-    SUBJECT_CD == "CHEM" & CATALOG_NBR == "0110" & COURSE_GRADE_CD != "W", 1, 0)) %>%
-  mutate(GCHEM2 = ifelse(
-    SUBJECT_CD == "CHEM" & CATALOG_NBR == "0120" & COURSE_GRADE_CD != "W", 1, 0)) %>%
-  mutate(BIO1 = ifelse(
-    SUBJECT_CD == "BIOSC" & CATALOG_NBR == "0150" & COURSE_GRADE_CD != "W", 1, 0)) %>%
-  mutate(BIO2 = ifelse(
-    SUBJECT_CD == "BIOSC" & CATALOG_NBR == "0160" & COURSE_GRADE_CD != "W", 1, 0))
+write.csv(df_crs, file = "SEISMIC_AP_COURSES_CLEAN.csv")
 
-#Course Grade
-df_sub <- df_sub %>%
-  mutate(PHYS1_GPA = ifelse(
-    SUBJECT_CD == "PHYS" & CATALOG_NBR == "0174", GRADE_POINTS/UNITS_TAKEN, NA)) %>%
-  mutate(PHYS2_GPA = ifelse(
-    SUBJECT_CD == "PHYS" & CATALOG_NBR == "0175", GRADE_POINTS/UNITS_TAKEN, NA)) %>%
-  mutate(GCHEM1_GPA = ifelse(
-    SUBJECT_CD == "CHEM" & CATALOG_NBR == "0110", GRADE_POINTS/UNITS_TAKEN, NA)) %>%
-  mutate(GCHEM2_GPA = ifelse(
-    SUBJECT_CD == "CHEM" & CATALOG_NBR == "0120", GRADE_POINTS/UNITS_TAKEN, NA)) %>%
-  mutate(BIO1_GPA = ifelse(
-    SUBJECT_CD == "BIOSC" & CATALOG_NBR == "0150", GRADE_POINTS/UNITS_TAKEN, NA)) %>%
-  mutate(BIO2_GPA = ifelse(
-    SUBJECT_CD == "BIOSC" & CATALOG_NBR == "0160", GRADE_POINTS/UNITS_TAKEN, NA))
+# By Course (Taking only First Attempt) ####
+# Bio
+df_crs_bio1 <- df_crs %>%
+  filter(crs_sbj == "BIOSC" & (crs_catalog == "0150")) %>% # | crs_catalog == "0715")) %>%
+  #Only first time taking course
+  group_by(st_id, crs_catalog) %>% 
+  arrange(crs_term, .by_group= TRUE) %>%
+  mutate(crs_retake_num = row_number()) %>%
+  filter(crs_retake_num == 1) %>%
+  #Only first time taking course (incl. Honors)
+  group_by(st_id) %>% 
+  arrange(crs_term, .by_group= TRUE) %>%
+  mutate(crs_retake_num2 = row_number()) %>%
+  filter(crs_retake_num2 == 1)
 
-#Course Withdrawn
-df_sub <- df_sub %>%
-  mutate(PHYS1_W = ifelse(
-    SUBJECT_CD == "PHYS" & CATALOG_NBR == "0174" & COURSE_GRADE_CD == "W", 1, 0)) %>%
-  mutate(PHYS2_W = ifelse(
-    SUBJECT_CD == "PHYS" & CATALOG_NBR == "0175" & COURSE_GRADE_CD == "W", 1, 0)) %>%
-  mutate(GCHEM1_W = ifelse(
-    SUBJECT_CD == "CHEM" & CATALOG_NBR == "0110" & COURSE_GRADE_CD == "W", 1, 0)) %>%
-  mutate(GCHEM2_W = ifelse(
-    SUBJECT_CD == "CHEM" & CATALOG_NBR == "0120" & COURSE_GRADE_CD == "W", 1, 0)) %>%
-  mutate(BIO1_W = ifelse(
-    SUBJECT_CD == "BIOSC" & CATALOG_NBR == "0150" & COURSE_GRADE_CD == "W", 1, 0)) %>%
-  mutate(BIO2_W = ifelse(
-    SUBJECT_CD == "BIOSC" & CATALOG_NBR == "0160" & COURSE_GRADE_CD == "W", 1, 0))
+df_crs_bio2 <- df_crs %>%
+  filter(crs_sbj == "BIOSC" & (crs_catalog == "0160")) %>% # | crs_catalog == "0716")) %>%
+  #Only first time taking course
+  group_by(st_id, crs_catalog) %>% 
+  arrange(crs_term, .by_group= TRUE) %>%
+  mutate(crs_retake_num = row_number()) %>%
+  filter(crs_retake_num == 1) %>%
+  #Only first time taking course (incl. Honors)
+  group_by(st_id) %>% 
+  arrange(crs_term, .by_group= TRUE) %>%
+  mutate(crs_retake_num2 = row_number()) %>%
+  filter(crs_retake_num2 == 1)
 
-#Summer Course
-df_sub <- df_sub %>%
-  mutate(PHYS1_Sum = ifelse(
-    SUBJECT_CD == "PHYS" & CATALOG_NBR == "0174" & endsWith(as.character(TERM_CD),"7"), 1, 0)) %>%
-  mutate(PHYS2_Sum = ifelse(
-    SUBJECT_CD == "PHYS" & CATALOG_NBR == "0175" & endsWith(as.character(TERM_CD),"7"), 1, 0)) %>%
-  mutate(GCHEM1_Sum = ifelse(
-    SUBJECT_CD == "CHEM" & CATALOG_NBR == "0110" & endsWith(as.character(TERM_CD),"7"), 1, 0)) %>%
-  mutate(GCHEM2_Sum = ifelse(
-    SUBJECT_CD == "CHEM" & CATALOG_NBR == "0120" & endsWith(as.character(TERM_CD),"7"), 1, 0)) %>%
-  mutate(BIO1_Sum = ifelse(
-    SUBJECT_CD == "BIOSC" & CATALOG_NBR == "0150" & endsWith(as.character(TERM_CD),"7"), 1, 0)) %>%
-  mutate(BIO2_Sum = ifelse(
-    SUBJECT_CD == "BIOSC" & CATALOG_NBR == "0160" & endsWith(as.character(TERM_CD),"7"), 1, 0)) 
+#Chem
+df_crs_chem1 <- df_crs %>%
+  filter(crs_sbj == "CHEM" & (crs_catalog == "0110")) %>% # | crs_catalog == "0710")) %>%
+  #Only first time taking course
+  group_by(st_id, crs_catalog) %>% 
+  arrange(crs_term, .by_group= TRUE) %>%
+  mutate(crs_retake_num = row_number()) %>%
+  filter(crs_retake_num == 1) %>%
+  #Only first time taking course (incl. Honors)
+  group_by(st_id) %>% 
+  arrange(crs_term, .by_group= TRUE) %>%
+  mutate(crs_retake_num2 = row_number()) %>%
+  filter(crs_retake_num2 == 1)
 
-#Course Terms (STD)
-df_sub <- df_sub %>%
-  mutate(PHYS1_TRM = ifelse(
-    SUBJECT_CD == "PHYS" & CATALOG_NBR == "0174", TERM_STD, NaN)) %>%
-  mutate(PHYS2_TRM = ifelse(
-    SUBJECT_CD == "PHYS" & CATALOG_NBR == "0175" , TERM_STD, NaN)) %>%
-  mutate(GCHEM1_TRM = ifelse(
-    SUBJECT_CD == "CHEM" & CATALOG_NBR == "0110" , TERM_STD, NaN)) %>%
-  mutate(GCHEM2_TRM = ifelse(
-    SUBJECT_CD == "CHEM" & CATALOG_NBR == "0120", TERM_STD, NaN)) %>%
-  mutate(BIO1_TRM = ifelse(
-    SUBJECT_CD == "BIOSC" & CATALOG_NBR == "0150", TERM_STD, NaN)) %>%
-  mutate(BIO2_TRM = ifelse(
-    SUBJECT_CD == "BIOSC" & CATALOG_NBR == "0160" , TERM_STD, NaN))
+df_crs_chem2 <- df_crs %>%
+  filter(crs_sbj == "CHEM" & (crs_catalog == "0120")) %>% # | crs_catalog == "0720")) %>%
+  #Only first time taking course
+  group_by(st_id, crs_catalog) %>% 
+  arrange(crs_term, .by_group= TRUE) %>%
+  mutate(crs_retake_num = row_number()) %>%
+  filter(crs_retake_num == 1) %>%
+  #Only first time taking course (incl. Honors)
+  group_by(st_id) %>% 
+  arrange(crs_term, .by_group= TRUE) %>%
+  mutate(crs_retake_num2 = row_number()) %>%
+  filter(crs_retake_num2 == 1)
 
-#Course Terms (YEAR)
-df_sub <- df_sub %>%
-  mutate(PHYS1_YR = ifelse(
-    SUBJECT_CD == "PHYS" & CATALOG_NBR == "0174", YEAR, NaN)) %>%
-  mutate(PHYS2_YR = ifelse(
-    SUBJECT_CD == "PHYS" & CATALOG_NBR == "0175" , YEAR, NaN)) %>%
-  mutate(GCHEM1_YR = ifelse(
-    SUBJECT_CD == "CHEM" & CATALOG_NBR == "0110" , YEAR, NaN)) %>%
-  mutate(GCHEM2_YR = ifelse(
-    SUBJECT_CD == "CHEM" & CATALOG_NBR == "0120", YEAR, NaN)) %>%
-  mutate(BIO1_YR = ifelse(
-    SUBJECT_CD == "BIOSC" & CATALOG_NBR == "0150", YEAR, NaN)) %>%
-  mutate(BIO2_YR = ifelse(
-    SUBJECT_CD == "BIOSC" & CATALOG_NBR == "0160" , YEAR, NaN))
+#Phys
+df_crs_phys1 <- df_crs %>%
+  filter(crs_sbj == "PHYS" & (crs_catalog == "0174")) %>% # | crs_catalog == "0475")) %>%
+  #Only first time taking course
+  group_by(st_id, crs_catalog) %>% 
+  arrange(crs_term, .by_group= TRUE) %>%
+  mutate(crs_retake_num = row_number()) %>%
+  filter(crs_retake_num == 1) %>%
+  #Only first time taking course (incl. Honors)
+  group_by(st_id) %>% 
+  arrange(crs_term, .by_group= TRUE) %>%
+  mutate(crs_retake_num2 = row_number()) %>%
+  filter(crs_retake_num2 == 1)
 
-#Summary Variables
-df_sub <- df_sub %>%
-  group_by(EMPLID_H) %>%
-  mutate(mPHYS1 = max(PHYS1)) %>%
-  mutate(mPHYS2 = max(PHYS2)) %>%
-  mutate(mGCHEM1 = max(GCHEM1)) %>%
-  mutate(mGCHEM2 = max(GCHEM2)) %>%
-  mutate(mBIO1 = max(BIO1)) %>%
-  mutate(mBIO2 = max(BIO2))
+df_crs_phys2 <- df_crs %>%
+  filter(crs_sbj == "PHYS" & (crs_catalog == "0175")) %>% # | crs_catalog == "0476")) %>%
+  #Only first time taking course
+  group_by(st_id, crs_catalog) %>% 
+  arrange(crs_term, .by_group= TRUE) %>%
+  mutate(crs_retake_num = row_number()) %>%
+  filter(crs_retake_num == 1) %>%
+  #Only first time taking course (incl. Honors)
+  group_by(st_id) %>% 
+  arrange(crs_term, .by_group= TRUE) %>%
+  mutate(crs_retake_num2 = row_number()) %>%
+  filter(crs_retake_num2 == 1)
 
-df_sub <- df_sub %>%
-  group_by(EMPLID_H) %>%
-  mutate(mGPA = mean(GRADE_POINTS/UNITS_TAKEN))
+##### AP Level ####
+# By course ####
+# Bio
+df_ap_bio <- df_full %>%
+  mutate(st_id = EMPLID_H) %>%
+  mutate(aptaker = ifelse(is.na(BY), 0, 1)) %>%
+  mutate(apskipper = ifelse(BY >= 4 & !is.na(BY), 1, 0)) %>%
+  mutate(apskipper_2 = ifelse(BY == 5 & !is.na(BY), 1, 0)) %>%
+  mutate(tookcourse = ifelse(
+    SUBJECT_CD == "BIOSC" & (CATALOG_NBR == "0150") & # | CATALOG_NBR == "0715") & 
+      COURSE_GRADE_CD != "W", 1, 0)) %>%
+  mutate(tookcourse_2 = ifelse(
+    SUBJECT_CD == "BIOSC" & (CATALOG_NBR == "0160") & # | CATALOG_NBR == "0716") & 
+      COURSE_GRADE_CD != "W", 1, 0)) %>%
+  #mutate(apyear = ?) %>%
+  mutate(apscore = as.character(BY)) %>%
+  mutate(apscore_full = ifelse(is.na(BY), 0, BY)) %>%
+  select(st_id, aptaker:apscore_full) %>%
+  group_by(st_id) %>%
+  summarize_at(vars(-group_cols()),
+               max, na.rm = TRUE)
 
-#df_sub <- df_sub %>%                               #Code not running
- # group_by(EMPLID_H) %>% 
-  #summarize(
-   # mGPA_1 = mean(PHYS1_GPA, BIO1_GPA, GCHEM1_GPA),
-    #mGPA_2 = mean(PHYS2_GPA, BIO2_GPA, GCHEM2_GPA))
-                
-df_sub <- df_sub %>%
-  group_by(EMPLID_H) %>%
-  mutate(mPHYS1_W = max(PHYS1_W)) %>%
-  mutate(mPHYS2_W = max(PHYS2_W)) %>%
-  mutate(mGCHEM1_W = max(GCHEM1_W)) %>%
-  mutate(mGCHEM2_W = max(GCHEM2_W)) %>%
-  mutate(mBIO1_W = max(BIO1_W)) %>%
-  mutate(mBIO2_W = max(BIO2_W))
+#Chem
+df_ap_chem <- df_full %>%
+  mutate(st_id = EMPLID_H) %>%
+  mutate(aptaker = ifelse(is.na(CH), 0, 1)) %>%
+  mutate(apskipper = ifelse(CH >= 3 & !is.na(CH), 1, 0)) %>%
+  mutate(apskipper_2 = ifelse(CH == 5 & !is.na(CH), 1, 0)) %>%
+  mutate(tookcourse = ifelse(
+    SUBJECT_CD == "CHEM" & (CATALOG_NBR == "0110") & # | CATALOG_NBR == "0710") & 
+      COURSE_GRADE_CD != "W", 1, 0)) %>%
+  mutate(tookcourse_2 = ifelse(
+    SUBJECT_CD == "CHEM" & (CATALOG_NBR == "0120") & # | CATALOG_NBR == "0720") & 
+      COURSE_GRADE_CD != "W", 1, 0)) %>%
+  #mutate(apyear = ?) %>%
+  mutate(apscore = as.character(CH)) %>%
+  mutate(apscore_full = ifelse(is.na(CH), 0, CH)) %>%
+  select(st_id, aptaker:apscore_full) %>%
+  group_by(st_id) %>%
+  summarize_at(vars(-group_cols()),
+               max, na.rm = TRUE)
 
-df_sub <- df_sub %>%
-  group_by(EMPLID_H, TERM_CD) %>%
-  mutate(mCRED = mean(UNITS_TAKEN))
+#Phys
+df_ap_phys <- df_full %>%
+  mutate(st_id = EMPLID_H) %>%
+  mutate(aptaker_CE = ifelse(is.na(PHCE), 0, 1)) %>%
+  mutate(aptaker_CM = ifelse(is.na(PHCM), 0, 1)) %>%
+  mutate(aptaker = ifelse(aptaker_CE == 1 | aptaker_CM == 1, 1, 0)) %>%
+  mutate(apskipperCE = ifelse(PHCE == 5 & !is.na(PHCE), 1, 0)) %>%
+  mutate(apskipperCM = ifelse(PHCM == 5  & !is.na(PHCM), 1, 0)) %>%
+  mutate(apskipper = ifelse(apskipperCE == 1 | apskipperCM == 1, 1, 0)) %>%
+  mutate(tookcourse = ifelse(
+    SUBJECT_CD == "PHYS" & (CATALOG_NBR == "0174") & # | CATALOG_NBR == "0475") & 
+      COURSE_GRADE_CD != "W", 1, 0)) %>%
+  mutate(tookcourse_2 = ifelse(
+    SUBJECT_CD == "PHYS" & (CATALOG_NBR == "0175") & # | CATALOG_NBR == "0476") & 
+      COURSE_GRADE_CD != "W", 1, 0)) %>%
+  #mutate(apyear = ?) %>%
+  mutate(apscore_CE = PHCE) %>%
+  mutate(apscore_CM = PHCM) %>%
+  mutate(apscore = ifelse(is.na(PHCM), PHCE, PHCM)) %>%
+  mutate(apscore = as.character(apscore)) %>%
+  mutate(apscore_CE_full = ifelse(is.na(PHCE), 0, PHCE)) %>%
+  mutate(apscore_CM_full = ifelse(is.na(PHCM), 0, PHCM)) %>%
+  mutate(apscore_full = ifelse(is.na(PHCM), PHCE, PHCM)) %>%
+  mutate(apscore_full = ifelse(is.na(apscore_full), 0, apscore_full)) %>%
+  select(st_id, aptaker:apscore_full) %>%
+  group_by(st_id) %>%
+  summarize_at(vars(-group_cols()),
+               max, na.rm = TRUE)
 
-# DESCRIPTIVE STATS ####
-df_sub %>%
-  group_by(EMPLID_H) %>%
-  select(  BY_CR, CH_CR, PY1_CR, PY2_CR, PHCE_CR, PHCM_CR,
-           PHYS1, PHYS2, BIO1, BIO2, GCHEM1, GCHEM2,
-           PHYS1_GPA, PHYS2_GPA, BIO1_GPA, BIO2_GPA, GCHEM1_GPA, GCHEM2_GPA,
-           PHYS1_W, PHYS2_W, GCHEM1_W, GCHEM2_W, BIO1_W, BIO2_W,
-           PHYS1_Sum, PHYS2_Sum, BIO1_Sum, BIO2_Sum, GCHEM1_Sum, GCHEM2_Sum,
-           PHYS1_TRM, PHYS2_TRM, BIO1_TRM, BIO2_TRM, GCHEM1_TRM, GCHEM2_TRM,
-           PHYS1_YR, PHYS2_YR, BIO1_YR, BIO2_YR, GCHEM1_YR, GCHEM2_YR,
-           PHYS1_SK_CE, PHYS1_SK_CM, BIO1_SK, GCHEM1_SK,
-           FEMALE, ETHNIC_GROUP_CD, RACE_ETHNICITY, FIRST_GENERATION_DESCR, AGI, HS_GPA, SAT_HIGH_VERBAL, SAT_HIGH_WRIT, SAT_HIGH_MATH,  
-           DEC, YEAR, SEMESTER, START_TRM_CD, TERM_CD, TERM_STD, UNITS_TAKEN, GRADE_POINTS,
-           BY, CH, PY1, PY2, PHCE, PHCM,
-           mCRED, mPHYS1_W, mPHYS2_W, mGCHEM1_W, mGCHEM2_W, mBIO1_W, mBIO2_W,
-           mPHYS1, mPHYS2, mBIO1, mBIO2, mGCHEM1, mGCHEM2) %>%
-          describe()
-
-view(dfSummary(df_sub))
-describe(df_sub)
-descr(df_sub)
+#### Create Stacked Dataset #### 
+# (STILL MISSING: gpao, begin_term_cum_gpa, instructor_name, apyear)
+# Bio (N=3090)
+df_bio <- df_std %>%
+  right_join(df_crs_bio2, by = "st_id") %>%
+  full_join(df_crs_bio1, by = "st_id") %>%
+  full_join(df_ap_bio, by = "st_id") %>%
+  mutate(course = "BIO") %>%
+  mutate(skipped_1 = ifelse(tookcourse == 0 & tookcourse_2 == 1, 1, 0)) %>%
+  select(course, st_id:hsgpa, crs_sbj.x:current_major.x, crs_sbj.y:current_major.y, 
+         aptaker, apscore, apscore_full, apskipper, 
+         tookcourse, tookcourse_2, skipped_1) %>%
+  filter(transfer == 0) %>%
+  filter(international == 0) %>%
+  filter(crs_term.x > 2137 & crs_term.x < 2191)
 
 
+#Chem (N=3019)
+df_chem <- df_std %>%
+  right_join(df_crs_chem2, by = "st_id") %>%
+  full_join(df_crs_chem1, by = "st_id") %>%
+  full_join(df_ap_chem, by = "st_id") %>%
+  mutate(course = "CHEM") %>%
+  mutate(skipped_1 = ifelse(tookcourse == 0 & tookcourse_2 == 1, 1, 0)) %>%
+  select(course, st_id:hsgpa, crs_sbj.x:current_major.x, crs_sbj.y:current_major.y, 
+         aptaker, apscore, apscore_full, apskipper, 
+         tookcourse, tookcourse_2, skipped_1) %>%
+  filter(transfer == 0) %>%
+  filter(international == 0) %>%
+  filter(crs_term.x > 2147 & crs_term.x < 2191)
+
+#Phys (N=1598)
+df_phys <- df_std %>%
+  right_join(df_crs_phys2, by = "st_id") %>%
+  full_join(df_crs_phys1, by = "st_id") %>%
+  full_join(df_ap_phys, by = "st_id") %>%
+  mutate(course = "PHYS") %>%
+  mutate(skipped_1 = ifelse(tookcourse == 0 & tookcourse_2 == 1, 1, 0)) %>%
+  select(course, st_id:hsgpa, crs_sbj.x:current_major.x, crs_sbj.y:current_major.y, 
+         aptaker, apscore, apscore_full, apskipper,
+         tookcourse, tookcourse_2, skipped_1) %>%
+  filter(transfer == 0) %>%
+  filter(international == 0) %>%
+  filter(crs_term.x > 2157 & crs_term.x < 2191)
+
+#Stacked data
+df_clean <- rbind(df_bio, df_chem, df_phys)
+df_clean <- df_clean %>%
+  rename_at(vars(ends_with(".x")), 
+            ~(str_replace(., ".x", "_2"))) %>%
+  rename_at(vars(ends_with(".y")), 
+            ~(str_replace(., ".y", "")))
+
+rm(df_ap_bio, df_ap_chem, df_ap_phys, 
+   df_bio, df_chem, df_phys, 
+   df_crs_bio1, df_crs_bio2, df_crs_chem1, df_crs_chem2, df_crs_phys1, df_crs_phys2,
+   df_crs, df_std)
+
+write.csv(df_clean, file = "SEISMIC_AP_CLEAN.csv")
