@@ -11,8 +11,8 @@ pacman::p_load("tidyverse", "data.table", "psych", "summarytools", "haven", "Hmi
 # Functions and settings ####
 # Use dplyr for 'select'
 select <- dplyr::select
-# Turn off scientific notation up to 7 digits
-options(scipen = 7)
+# Turn off scientific notation up to 10 digits
+options(scipen = 10)
 # VIF function 
 VIF <- function(linear.model, no.intercept=FALSE, all.diagnostics=FALSE, plot=FALSE) {
   require(mctest)
@@ -24,62 +24,66 @@ VIF <- function(linear.model, no.intercept=FALSE, all.diagnostics=FALSE, plot=FA
   output
 }
 
-# Load CLEAN Dataframes ####
-df_sub <- read.csv("SEISMIC_AP_CLEAN.csv")
-names(df_sub)
+# Load Raw Dataframe ####
+df_clean <- read.csv("SEISMIC_AP_CLEAN.csv")
+names(df_clean)
 
-# Subset Dataframes 
+# Subset Dataframes #### 
+# Bio
 # Took 2nd course in sequence
-df_bio <- df_sub %>%
-  subset(course == "BIO") 
-
-df_gchem <- df_sub %>%
-  subset(course == "CHEM") %>%
-  subset(cohort_2014 != 1) 
-
-df_phys <- df_ind %>%
-  subset(PHYS2 == 1) %>%
-  subset(YEAR_2014 != 1) %>%
-  subset(YEAR_2015 != 1) %>%
-  subset(YEAR_2019 !=1)
-
+df_bio2 <- df_clean %>%
+  subset(discipline == "BIO") %>%
+  subset(apyear >= 2013)
 # Took AP 
 df_BYtakers <- df_bio2 %>%
-  subset(BY_CR > 0)
-df_CHtakers <- df_gchem2 %>%
-  subset(CH_CR > 0)
-df_PHtakers <- df_phys2 %>%
-  subset(PHCM_CR > 0)
-
+  subset(aptaker == 1)
 # Skip eligible
 df_BYeligible<- df_bio2 %>%
-  subset(BIO1_TH == 1)
+  subset(apskipper == 1)
 df_BYeligible.4 <- df_bio2 %>%
-  subset(BY == 4)
+  subset(apscore == 4)
 df_BYeligible.5 <- df_bio2 %>%
-  subset(BY == 5)
+  subset(apscore == 5)
 
-df_CHeligible<- df_gchem2 %>%
-  subset(GCHEM1_TH == 1)
-df_CHeligible.3 <- df_gchem2 %>%
-  subset(CH == 3)
-df_CHeligible.4 <- df_gchem2 %>%
-  subset(CH == 4)
-df_CHeligible.5 <- df_gchem2 %>%
-  subset(CH == 5)
+#Chem
+# Took 2nd course in sequence
+df_chem2 <- df_clean %>%
+  subset(discipline == "CHEM") %>%
+  subset(apyear >= 2014)
+# Took AP 
+df_CHtakers <- df_chem2 %>%
+  subset(aptaker == 1)
+# Skip eligible
+df_CHeligible<- df_chem2 %>%
+  subset(apskipper == 1)
+df_CHeligible.3 <- df_chem2 %>%
+  subset(apscore == 3)
+df_CHeligible.4 <- df_chem2 %>%
+  subset(apscore == 4)
+df_CHeligible.5 <- df_chem2 %>%
+  subset(apscore == 5)
 
+#Phys
+# Took 2nd course in sequence
+df_phys2 <- df_clean %>%
+  subset(discipline == "PHYS") %>%
+  subset(apyear >= 2015)
+# Took AP 
+df_PHtakers <- df_phys2 %>%
+  subset(aptaker == 1)
+# Skip eligible
 df_PHeligible<- df_phys2 %>%
-  subset(PHYS1_TH == 1)
+  subset(apskipper == 1)
 df_PHeligible.5 <- df_phys2 %>%
-  subset(PHCE == 5 | PHCM == 5)
+  subset(apscore == 5)
 
 # Descriptive Stats ####
 # Correlations among key predictors #
-correl1 <- df_sub %>%
+correl1 <- df_clean %>%
   ungroup() %>%
-  select(FG, LOW_INCOME, FEMALE, URM, 
-         HS_GPA, SAT_HIGH_MATH, SAT_HIGH_VERBAL, 
-         YEAR_2014, YEAR_2015, YEAR_2016, YEAR_2017, YEAR_2018, YEAR_2019)
+  select(firstgen, lowincomflag, female, urm, 
+         hsgpa, mathsr, englsr, 
+         cohort_2014, cohort_2015, cohort_2016, cohort_2017, cohort_2018)
 corrplot1 <- cor(correl1, use="pairwise.complete.obs")
 corrplot(corrplot1,type = "lower")
 
@@ -89,452 +93,322 @@ corrplot(corrplot1,type = "lower")
 
 # Model 1a: Credits ####
 #Bio
-m1.a_BY <- glm(BY_CR ~ factor(FG) + scale(LOW_INCOME)  + factor(FEMALE) + factor(URM) +
-                 scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                 factor(YEAR_2014) + factor(YEAR_2015) + factor(YEAR_2016) + factor(YEAR_2017) + factor(YEAR_2018),
-               binomial(link = "logit"), df_bio2)
+m1.a_BY <- glm(aptaker ~ factor(firstgen) + scale(lowincomflag)  + factor(female) + factor(urm) +
+                 scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear),
+                 binomial(link = "logit"), df_bio2)
 summary(m1.a_BY)
 exp(cbind("Odds Ratio" = coef(m1.a_BY), confint.default(m1.a_BY, level = 0.95)))
 logistic.display(m1.a_BY)
 
 #Chem
-m1.a_CH <- glm(CH_CR ~ factor(FG) + scale(LOW_INCOME)  + factor(FEMALE) + factor(URM) +
-                 scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                 factor(YEAR_2015) + factor(YEAR_2016) + factor(YEAR_2017) + factor(YEAR_2018),
-               binomial(link = "logit"), df_gchem2)
+m1.a_CH <- glm(aptaker ~ factor(firstgen) + scale(lowincomflag)  + factor(female) + factor(urm) +
+                 scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear),
+                 binomial(link = "logit"), df_chem2)
 summary(m1.a_CH)   
 exp(cbind("Odds Ratio" = coef(m1.a_CH), confint.default(m1.a_CH, level = 0.95)))
 logistic.display(m1.a_CH)
 
 #Physics
-m1.a_PHCM <- glm(PHCM_CR ~ factor(FG) + scale(LOW_INCOME)  + factor(FEMALE) + factor(URM) +
-                   scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                   factor(YEAR_2016) + factor(YEAR_2017) + factor(YEAR_2018),
+m1.a_PH <- glm(aptaker ~ factor(firstgen) + scale(lowincomflag)  + factor(female) + factor(urm) +
+                   scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear),
                  binomial(link = "logit"), df_phys2)
-summary(m1.a_PHCM)
-exp(cbind("Odds Ratio" = coef(m1.a_PHCM), confint.default(m1.a_PHCM, level = 0.95)))
-logistic.display(m1.a_PHCM)
-
-
-sink("m1_output.csv")
-print(summary(m1.a_BY))
-print(summary(m1.a_CH))
-print(summary(m1.a_PHCM))
-sink()
-
-sink("m1_output_OR.csv")
-print(exp(cbind("Odds Ratio" = coef(m1.a_BY), confint.default(m1.a_BY, level = 0.95))))
-print(exp(cbind("Odds Ratio" = coef(m1.a_CH), confint.default(m1.a_CH, level = 0.95))))
-print(exp(cbind("Odds Ratio" = coef(m1.a_PHCM), confint.default(m1.a_PHCM, level = 0.95))))
-sink()
+summary(m1.a_PH)
+exp(cbind("Odds Ratio" = coef(m1.a_PH), confint.default(m1.a_PH, level = 0.95)))
+logistic.display(m1.a_PH)
 
 # Model 1b: Score ####
 #Bio
-df_BYtakers <- df_bio2 %>%
-  subset(BY_CR > 0)
-m1.b_BY <- lm(scale(BY) ~ FG + scale(LOW_INCOME)  + FEMALE + URM +
-                scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                YEAR_2014 + YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
-              df_BYtakers)
+m1.b_BY <- lm(scale(apscore) ~ firstgen + scale(lowincomflag)  + female + urm +
+                scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear),
+                df_BYtakers)
 summary(m1.b_BY)
 cbind("Beta" = coef(m1.b_BY), confint.default(m1.b_BY, level = 0.95))
 
 #Chem
-df_CHtakers <- df_gchem2 %>%
-  subset(CH_CR > 0)
-m1.b_CH <- lm(scale(CH) ~ FG + scale(LOW_INCOME)  + FEMALE + URM +
-                scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
-              df_CHtakers)
+m1.b_CH <- lm(scale(apscore) ~ firstgen + scale(lowincomflag)  + female + urm +
+                scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
+                df_CHtakers)
 summary(m1.b_CH)   
 cbind("Beta" = coef(m1.b_CH), confint.default(m1.b_CH, level = 0.95))
 
 #Physics
-df_PHCMtakers <- df_phys2 %>%
-  subset(PHCM_CR > 0)
-m1.b_PHCM <- lm(scale(PHCM) ~ FG + scale(LOW_INCOME)  + FEMALE + URM +
-                  scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                  YEAR_2016 + YEAR_2017 + YEAR_2018, 
-                df_PHCMtakers)
-summary(m1.b_PHCM)   
-cbind("Beta" = coef(m1.b_PHCM), confint.default(m1.b_PHCM, level = 0.95))
-
-sink("m2_output.csv")
-print(summary(m1.b_BY))
-print(summary(m1.b_CH))
-print(summary(m1.b_PHCM))
-sink()
-
-sink("m2_output_CI.csv")
-print(cbind("Beta" = coef(m1.b_BY), confint.default(m1.b_BY, level = 0.95)))
-print(cbind("Beta" = coef(m1.b_CH), confint.default(m1.b_CH, level = 0.95)))
-print(cbind("Beta" = coef(m1.b_PHCM), confint.default(m1.b_PHCM, level = 0.95)))
-sink()
-
+m1.b_PH <- lm(scale(apscore) ~ firstgen + scale(lowincomflag)  + female + urm +
+                  scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
+                df_PHtakers)
+summary(m1.b_PH)   
+cbind("Beta" = coef(m1.b_PH), confint.default(m1.b_PH, level = 0.95))
 
 # Model 1c: Eligible to Skip ####
 #Bio
-m1.c_BY <- glm(BIO1_TH ~ factor(FG) + scale(LOW_INCOME)  + factor(FEMALE) + factor(URM) +
-                 scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                 factor(YEAR_2014) + factor(YEAR_2015) + factor(YEAR_2016) + factor(YEAR_2017) + factor(YEAR_2018), 
+m1.c_BY <- glm(apskipper ~ factor(firstgen) + scale(lowincomflag)  + factor(female) + factor(urm) +
+                 scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                binomial(link = "logit"), df_bio2)
 summary(m1.c_BY)
 exp(cbind("Odds Ratio" = coef(m1.c_BY), confint.default(m1.c_BY, level = 0.95)))
 logistic.display(m1.c_BY)
 
 #Chem
-m1.c_CH <- glm(GCHEM1_TH ~ factor(FG) + scale(LOW_INCOME)  + factor(FEMALE) + factor(URM) +
-                 scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                 factor(YEAR_2015) + factor(YEAR_2016) + factor(YEAR_2017) + factor(YEAR_2018), 
-               binomial(link = "logit"), df_gchem2)
+m1.c_CH <- glm(apskipper ~ factor(firstgen) + scale(lowincomflag)  + factor(female) + factor(urm) +
+                 scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
+               binomial(link = "logit"), df_chem2)
 summary(m1.c_CH)   
 exp(cbind("OddsRatio" = coef(m1.c_CH), confint.default(m1.c_CH, level = 0.95)))
 logistic.display(m1.c_CH)
 
 #Physics
 # Skip w/ CE or CM
-m1.c_PHCM <- glm(PHYS1_TH ~ factor(FG) + scale(LOW_INCOME) + factor(FEMALE) + factor(URM) +
-                   scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                   factor(YEAR_2016) + factor(YEAR_2017) + factor(YEAR_2018), 
+m1.c_PH <- glm(apskipper ~ factor(firstgen) + scale(lowincomflag) + factor(female) + factor(urm) +
+                   scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                  binomial(link = "logit"), df_phys2)
-summary(m1.c_PHCM)   
-exp(cbind("Odds Ratio" = coef(m1.c_PHCM), confint.default(m1.c_PHCM, level = 0.95)))
-logistic.display(m1.c_PHCM)
-
-sink("m2_output.csv")
-print(summary(m1.c_BY))
-print(summary(m1.c_CH))
-print(summary(m1.c_PHCM))
-sink()
-
-sink("m2_output_CI.csv")
-print(exp(cbind("Odds Ratio" = coef(m1.c_BY), confint.default(m1.c_BY, level = 0.95))))
-print(exp(cbind("Odds Ratio" = coef(m1.c_CH), confint.default(m1.c_CH, level = 0.95))))
-print(exp(cbind("Odds Ratio" = coef(m1.c_PHCM), confint.default(m1.c_PHCM, level = 0.95))))
-sink()
-
+summary(m1.c_PH)   
+exp(cbind("Odds Ratio" = coef(m1.c_PH), confint.default(m1.c_PH, level = 0.95)))
+logistic.display(m1.c_PH)
 
 #### RQ2 ####
 # Model 2a: Skipped if eligible ####
 #Bio
-m2.a_BY <- glm(BIO1_SK ~ factor(FG) + scale(LOW_INCOME)  + factor(FEMALE) + factor(URM) +
-                 scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                 factor(YEAR_2014) + factor(YEAR_2015) + factor(YEAR_2016) + factor(YEAR_2017) + factor(YEAR_2018), 
+m2.a_BY <- glm(skipped ~ factor(firstgen) + scale(lowincomflag)  + factor(female) + factor(urm) +
+                 scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                binomial(link = "logit"), df_BYeligible)
 summary(m2.a_BY)
 exp(cbind("Odds Ratio" = coef(m2.a_BY), confint.default(m2.a_BY, level = 0.95)))
 logistic.display(m2.a_BY)
 
-describe(df_BYeligible$BIO1_SK)
+describe(df_BYeligible$skipped)
 
 #Chem
-m2.a_CH <- glm(GCHEM1_SK ~ factor(FG) + scale(LOW_INCOME)  + factor(FEMALE) + factor(URM) +
-                 scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                 factor(YEAR_2015) + factor(YEAR_2016) + factor(YEAR_2017) + factor(YEAR_2018), 
+m2.a_CH <- glm(skipped ~ factor(firstgen) + scale(lowincomflag)  + factor(female) + factor(urm) +
+                 scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                binomial(link = "logit"), df_CHeligible)
 summary(m2.a_CH)   
 exp(cbind("Odds Ratio" = coef(m2.a_CH), confint.default(m2.a_CH, level = 0.95)))
 logistic.display(m2.a_CH)
 
-describe(df_CHeligible$GCHEM1_SK)
+describe(df_CHeligible$skipped)
 
 #Physics
 # Skip w/ CE or CM
-m2.a_PHCM <- glm(PHYS1_SK ~ factor(FG) + scale(LOW_INCOME) + factor(FEMALE) + factor(URM) +
-                   scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                   factor(YEAR_2016) + factor(YEAR_2017) + factor(YEAR_2018), 
-                 binomial(link = "logit"), df_PHeligible)
-summary(m2.a_PHCM)   
-exp(cbind("Odds Ratio" = coef(m2.a_PHCM), confint.default(m2.a_PHCM, level = 0.95)))
-logistic.display(m2.a_PHCM)
+m2.a_PH <- glm(skipped ~ factor(firstgen) + scale(lowincomflag) + factor(female) + factor(urm) +
+                   scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear),
+                   binomial(link = "logit"), df_PHeligible)
+summary(m2.a_PH)   
+exp(cbind("Odds Ratio" = coef(m2.a_PH), confint.default(m2.a_PH, level = 0.95)))
+logistic.display(m2.a_PH)
 
-describe(df_PHeligible$PHYS1_SK)
-
-sink("m2_output.csv")
-print(summary(m2.a_BY))
-print(summary(m2.a_CH))
-print(summary(m2.a_PHCM))
-sink()
-
-sink("m2_output_CI.csv")
-print(exp(cbind("Odds Ratio" = coef(m2.a_BY), confint.default(m2.a_BY, level = 0.95))))
-print(exp(cbind("Odds Ratio" = coef(m2.a_CH), confint.default(m2.a_CH, level = 0.95))))
-print(exp(cbind("Odds Ratio" = coef(m2.a_PHCM), confint.default(m2.a_PHCM, level = 0.95))))
-sink()
-
+describe(df_PHeligible$skipped)
 
 # Grade in second course if took AP?
 # Model 2b: Grade for AP takers ####
 #Bio
-m2.b_BY <- lm(scale(BIO2_GPA) ~ BIO1_SK + scale(BY) + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                YEAR_2014 + YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.b_BY <- lm(scale(numgrade_2) ~ skipped + scale(apscore) + firstgen + scale(lowincomflag)  + female + urm +
+                scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
               df_BYtakers)
 summary(m2.b_BY)
 cbind("Beta" = coef(m2.b_BY), confint.default(m2.b_BY, level = 0.95))
-VIF(m2.b_BY)
 
 #Bio eligible
-m2.b.el_BY <- lm(scale(BIO2_GPA) ~ BIO1_SK + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                   scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                   YEAR_2014 + YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.b.el_BY <- lm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag)  + female + urm +
+                   scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                  df_BYeligible)
 summary(m2.b.el_BY)
 cbind("Beta" = coef(m2.b.el_BY), confint.default(m2.b.el_BY, level = 0.95))
-VIF(m2.b.el_BY)
 
-#Bio if BY=4
-m2.b4_BY <- lm(scale(BIO2_GPA) ~ BIO1_SK + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                 scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                 YEAR_2014 + YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
+#Bio if apscore=4
+m2.b4_BY <- lm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag)  + female + urm +
+                 scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                df_BYeligible.4)
 summary(m2.b4_BY)
 cbind("Beta" = coef(m2.b4_BY), confint.default(m2.b4_BY, level = 0.95))
-VIF(m2.b4_BY)
 
-#Bio if BY=5
-m2.b5_BY <- lm(scale(BIO2_GPA) ~ BIO1_SK + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                 scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                 YEAR_2014 + YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
+#Bio if apscore=5
+m2.b5_BY <- lm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag)  + female + urm +
+                 scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                df_BYeligible.5)
 summary(m2.b5_BY)
 cbind("Beta" = coef(m2.b5_BY), confint.default(m2.b5_BY, level = 0.95))
-VIF(m2.b5_BY)
 
 #Chem
-m2.b_CH <- lm(scale(GCHEM2_GPA) ~ GCHEM1_SK + scale(CH) + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.b_CH <- lm(scale(numgrade_2) ~ skipped + scale(apscore) + firstgen + scale(lowincomflag)  + female + urm +
+                scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
               df_CHtakers)
 summary(m2.b_CH)
 cbind("Beta" = coef(m2.b_CH), confint.default(m2.b_CH, level = 0.95))
-VIF(m2.b_CH)
 
 #Chem eligible
-m2.b.el_CH <- lm(scale(GCHEM2_GPA) ~ GCHEM1_SK + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                   scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                   YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.b.el_CH <- lm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag)  + female + urm +
+                   scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                  df_CHeligible)
 summary(m2.b.el_CH)
 cbind("Beta" = coef(m2.b.el_CH), confint.default(m2.b.el_CH, level = 0.95))
-VIF(m2.b.el_CH)
 
-#Chem if CH = 3
-m2.b3_CH <- lm(scale(GCHEM2_GPA) ~ GCHEM1_SK + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                 scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                 YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
+#Chem if apscore = 3
+m2.b3_CH <- lm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag)  + female + urm +
+                 scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                df_CHeligible.3)
 summary(m2.b3_CH)
 cbind("Beta" = coef(m2.b3_CH), confint.default(m2.b3_CH, level = 0.95))
-VIF(m2.b3_CH)
 
-#Chem if CH = 4
-m2.b4_CH <- lm(scale(GCHEM2_GPA) ~ GCHEM1_SK + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                 scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                 YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
+#Chem if apscore = 4
+m2.b4_CH <- lm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag)  + female + urm +
+                 scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                df_CHeligible.4)
 summary(m2.b4_CH)
 cbind("Beta" = coef(m2.b4_CH), confint.default(m2.b4_CH, level = 0.95))
-VIF(m2.b4_CH)
 
-#Chem if CH = 5
-m2.b5_CH <- lm(scale(GCHEM2_GPA) ~ GCHEM1_SK + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                 scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                 YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
+#Chem if apscore = 5
+m2.b5_CH <- lm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag)  + female + urm +
+                 scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                df_CHeligible.5)
 summary(m2.b5_CH)
 cbind("Beta" = coef(m2.b5_CH), confint.default(m2.b5_CH, level = 0.95))
-VIF(m2.b5_CH)
 
 #Phys
-m2.b_PHCM <- lm(scale(PHYS2_GPA) ~ PHYS1_SK + scale(PHCM) + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                  scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                  YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.b_PH <- lm(scale(numgrade_2) ~ skipped + scale(apscore) + firstgen + scale(lowincomflag)  + female + urm +
+                  scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                 df_PHtakers)
-summary(m2.b_PHCM)
-cbind("Beta" = coef(m2.b_PHCM), confint.default(m2.b_PHCM, level = 0.95))
-VIF(m2.b_PHCM)
+summary(m2.b_PH)
+cbind("Beta" = coef(m2.b_PH), confint.default(m2.b_PH, level = 0.95))
 
 #Phys eligible
-m2.b.el_PHCM <- lm(scale(PHYS2_GPA) ~ PHYS1_SK + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                     scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                     YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.b.el_PH <- lm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag)  + female + urm +
+                     scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                    df_PHeligible)
-summary(m2.b.el_PHCM)
-cbind("Beta" = coef(m2.b.el_PHCM), confint.default(m2.b.el_PHCM, level = 0.95))
-VIF(m2.b.el_PHCM)
+summary(m2.b.el_PH)
+cbind("Beta" = coef(m2.b.el_PH), confint.default(m2.b.el_PH, level = 0.95))
 
 #Phys if PH = 5
-m2.b5_PHCM <- lm(scale(PHYS2_GPA) ~ PHYS1_SK + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                   scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                   YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.b5_PH <- lm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag)  + female + urm +
+                   scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                  df_PHeligible.5)
-summary(m2.b5_PHCM)
-cbind("Beta" = coef(m2.b5_PHCM), confint.default(m2.b5_PHCM, level = 0.95))
-VIF(m2.b5_PHCM)
+summary(m2.b5_PH)
+cbind("Beta" = coef(m2.b5_PH), confint.default(m2.b5_PH, level = 0.95))
 
 # Model 2c: Grade for everyone ####
 #Bio
-m2.c_BY <- lm(scale(BIO2_GPA) ~ BIO1_SK + scale(BY_ALL) + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                YEAR_2014 + YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.c_BY <- lm(scale(numgrade_2) ~ skipped + scale(apscore_full) + firstgen + scale(lowincomflag)  + female + urm +
+                scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
               df_bio2)
 summary(m2.c_BY)
 cbind("Beta" = coef(m2.c_BY), confint.default(m2.c_BY, level = 0.95))
-VIF(m2.c_BY)
 
 #Chem
-m2.c_CH <- lm(scale(GCHEM2_GPA) ~ GCHEM1_SK + scale(CH_ALL) + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.c_CH <- lm(scale(numgrade_2) ~ skipped + scale(apscore_full) + firstgen + scale(lowincomflag)  + female + urm +
+                scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
               df_bio2)
 summary(m2.c_CH)
 cbind("Beta" = coef(m2.c_CH), confint.default(m2.c_CH, level = 0.95))
-VIF(m2.c_CH)
 
 #Phys
-m2.c_PHCM <- lm(scale(PHYS2_GPA) ~ PHYS1_SK + scale(PH_ALL) + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                  scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                  YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.c_PH <- lm(scale(numgrade_2) ~ skipped + scale(apscore_full) + firstgen + scale(lowincomflag)  + female + urm +
+                  scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                 df_phys2)
-summary(m2.c_PHCM)
-cbind("Beta" = coef(m2.c_PHCM), confint.default(m2.c_PHCM, level = 0.95))
-VIF(m2.c_PHCM)
+summary(m2.c_PH)
+cbind("Beta" = coef(m2.c_PH), confint.default(m2.c_PH, level = 0.95))
 
 # Model 2d: Grade for AP takers (c.skipped, no score)####
 #Bio
-m2.d_BY <- lm(scale(BIO2_GPA) ~ BIO1_SK + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                YEAR_2014 + YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.d_BY <- lm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag)  + female + urm +
+                scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
               df_BYtakers)
 summary(m2.d_BY)
 cbind("Beta" = coef(m2.d_BY), confint.default(m2.d_BY, level = 0.95))
-VIF(m2.d_BY)
 
 #Chem
-m2.d_CH <- lm(scale(GCHEM2_GPA) ~ GCHEM1_SK + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.d_CH <- lm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag)  + female + urm +
+                scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
               df_CHtakers)
 summary(m2.d_CH)
 cbind("Beta" = coef(m2.d_CH), confint.default(m2.d_CH, level = 0.95))
-VIF(m2.d_CH)
 
 #Phys
-m2.d_PHCM <- lm(scale(PHYS2_GPA) ~ PHYS1_SK + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                  scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                  YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.d_PH <- lm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag)  + female + urm +
+                  scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                 df_PHtakers)
-summary(m2.d_PHCM)
-cbind("Beta" = coef(m2.d_PHCM), confint.default(m2.d_PHCM, level = 0.95))
-VIF(m2.d_PHCM)
+summary(m2.d_PH)
+cbind("Beta" = coef(m2.d_PH), confint.default(m2.d_PH, level = 0.95))
 
 # Model 2e: Grade for everyone (c.skipped, no score) ####
 #Bio
-m2.e_BY <- lm(scale(BIO2_GPA) ~ BIO1_SK + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                YEAR_2014 + YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.e_BY <- lm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag)  + female + urm +
+                scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
               df_bio2)
 summary(m2.e_BY)
 cbind("Beta" = coef(m2.e_BY), confint.default(m2.e_BY, level = 0.95))
-VIF(m2.e_BY)
 
 #Chem
-m2.e_CH <- lm(scale(GCHEM2_GPA) ~ GCHEM1_SK + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
-              df_gchem2)
+m2.e_CH <- lm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag)  + female + urm +
+                scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
+              df_chem2)
 summary(m2.e_CH)
 cbind("Beta" = coef(m2.e_CH), confint.default(m2.e_CH, level = 0.95))
-VIF(m2.e_CH)
 
 #Phys
-m2.e_PHCM <- lm(scale(PHYS2_GPA) ~ PHYS1_SK + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                  scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                  YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.e_PH <- lm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag)  + female + urm +
+                  scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                 df_phys2)
-summary(m2.e_PHCM)
-cbind("Beta" = coef(m2.e_PHCM), confint.default(m2.e_PHCM, level = 0.95))
-VIF(m2.e_PHCM)
+summary(m2.e_PH)
+cbind("Beta" = coef(m2.e_PH), confint.default(m2.e_PH, level = 0.95))
 
 # Model 2f: Grade for AP takers (c.skip eligible, no score)####
 #Bio
-m2.f_BY <- lm(scale(BIO2_GPA) ~ BIO1_TH + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                YEAR_2014 + YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.f_BY <- lm(scale(numgrade_2) ~ apskipper + firstgen + scale(lowincomflag)  + female + urm +
+                scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
               df_BYtakers)
 summary(m2.f_BY)
 cbind("Beta" = coef(m2.f_BY), confint.default(m2.f_BY, level = 0.95))
-VIF(m2.f_BY)
 
 #Chem
-m2.f_CH <- lm(scale(GCHEM2_GPA) ~ GCHEM1_TH + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.f_CH <- lm(scale(numgrade_2) ~ apskipper + firstgen + scale(lowincomflag)  + female + urm +
+                scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
               df_CHtakers)
 summary(m2.f_CH)
 cbind("Beta" = coef(m2.f_CH), confint.default(m2.f_CH, level = 0.95))
-VIF(m2.f_CH)
 
 #Phys
-m2.f_PHCM <- lm(scale(PHYS2_GPA) ~ PHYS1_TH + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                  scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                  YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.f_PH <- lm(scale(numgrade_2) ~ apskipper + firstgen + scale(lowincomflag)  + female + urm +
+                  scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                 df_PHtakers)
-summary(m2.f_PHCM)
-cbind("Beta" = coef(m2.f_PHCM), confint.default(m2.f_PHCM, level = 0.95))
-VIF(m2.f_PHCM)
-
+summary(m2.f_PH)
+cbind("Beta" = coef(m2.f_PH), confint.default(m2.f_PH, level = 0.95))
 
 # Model 2g: Grade for everyone (c.skip eligible, no score) ####
 #Bio
-m2.g_BY <- lm(scale(BIO2_GPA) ~ BIO1_TH + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                YEAR_2014 + YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.g_BY <- lm(scale(numgrade_2) ~ apskipper + firstgen + scale(lowincomflag)  + female + urm +
+                scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
               df_bio2)
 summary(m2.g_BY)
 cbind("Beta" = coef(m2.g_BY), confint.default(m2.g_BY, level = 0.95))
-VIF(m2.g_BY)
 
 #Chem
-m2.g_CH <- lm(scale(GCHEM2_GPA) ~ GCHEM1_TH + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, 
-              df_gchem2)
+m2.g_CH <- lm(scale(numgrade_2) ~ apskipper + firstgen + scale(lowincomflag)  + female + urm +
+                scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
+              df_chem2)
 summary(m2.g_CH)
 cbind("Beta" = coef(m2.g_CH), confint.default(m2.g_CH, level = 0.95))
-VIF(m2.g_CH)
 
 #Phys
-m2.g_PHCM <- lm(scale(PHYS2_GPA) ~ PHYS1_TH + FG + scale(LOW_INCOME)  + FEMALE + URM +
-                  scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                  YEAR_2016 + YEAR_2017 + YEAR_2018, 
+m2.g_PH <- lm(scale(numgrade_2) ~ apskipper + firstgen + scale(lowincomflag)  + female + urm +
+                  scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), 
                 df_phys2)
-summary(m2.g_PHCM)
-cbind("Beta" = coef(m2.g_PHCM), confint.default(m2.g_PHCM, level = 0.95))
-VIF(m2.g_PHCM)
-
-
+summary(m2.g_PH)
+cbind("Beta" = coef(m2.g_PH), confint.default(m2.g_PH, level = 0.95))
 
 ##### Weighting ####
 # Bio Weighting ####
 #Data with no missing
 df_bio2_comp <- df_bio2 %>%  
-  select(BIO2_GPA, BY_ALL, BIO1_TH, BIO1_SK, FG, LOW_INCOME, FEMALE, URM, 
-         HS_GPA, SAT_HIGH_MATH, SAT_HIGH_VERBAL, 
-         YEAR_2014, YEAR_2015, YEAR_2016, YEAR_2017, YEAR_2018) %>%
+  select(numgrade_2, apscore_full, apskipper, skipped, firstgen, lowincomflag, female, urm, 
+         hsgpa, mathsr, englsr, apyear) %>%
   filter(complete.cases(.))
 
 # Check balance before weighting
-bal.tab(BIO1_SK ~ + FG + scale(LOW_INCOME) + FEMALE + URM +
-          scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-          YEAR_2014 + YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018,
+bal.tab(skipped ~ + firstgen + scale(lowincomflag) + female + urm +
+          scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear),
         data = df_bio2_comp, estimand = "ATT", m.threshold = .05)
 
 # Estimate weights
-bio.out <- weightit(BIO1_SK ~ FG + scale(LOW_INCOME) + FEMALE + URM +
-                      scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                      YEAR_2014 + YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018,
+bio.out <- weightit(skipped ~ firstgen + scale(lowincomflag) + female + urm +
+                      scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear),
                     data = df_bio2_comp, estimand = "ATT")
 summary(bio.out) 
 
@@ -547,22 +421,19 @@ bio.w <- svydesign(ids = ~1, weights = bio.out$weights,
 
 # Chem Weighting ####
 #Data with no missing
-df_gchem2_comp <- df_gchem2 %>%  
-  select(GCHEM2_GPA, CH_ALL, GCHEM1_TH, GCHEM1_SK, FG, LOW_INCOME, FEMALE, URM, 
-         HS_GPA, SAT_HIGH_MATH, SAT_HIGH_VERBAL, 
-         YEAR_2014, YEAR_2015, YEAR_2016, YEAR_2017, YEAR_2018) %>%
+df_gchem2_comp <- df_chem2 %>%  
+  select(numgrade_2, apscore_full, apskipper, skipped, firstgen, lowincomflag, female, urm, 
+         hsgpa, mathsr, englsr, apyear) %>%
   filter(complete.cases(.))
 
 # Check balance before weighting
-bal.tab(GCHEM1_SK ~ + FG + scale(LOW_INCOME) + FEMALE + URM +
-          scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-          YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018,
+bal.tab(skipped ~ + firstgen + scale(lowincomflag) + female + urm +
+          scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear),
         data = df_gchem2_comp, estimand = "ATT", m.threshold = .05)
 
 # Estimate weights
-chem.out <- weightit(GCHEM1_SK ~ FG + scale(LOW_INCOME) + FEMALE + URM +
-                       scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                       YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018,
+chem.out <- weightit(skipped ~ firstgen + scale(lowincomflag) + female + urm +
+                       scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear),
                      data = df_gchem2_comp, estimand = "ATT")
 summary(chem.out) 
 
@@ -576,21 +447,18 @@ chem.w <- svydesign(ids = ~1, weights = chem.out$weights,
 # Phys Weighting ####
 #Data with no missing
 df_phys2_comp <- df_phys2 %>%  
-  select(PHYS2_GPA, PH_ALL, PHYS1_TH, PHYS1_SK, FG, LOW_INCOME, FEMALE, URM, 
-         HS_GPA, SAT_HIGH_MATH, SAT_HIGH_VERBAL, 
-         YEAR_2014, YEAR_2015, YEAR_2016, YEAR_2017, YEAR_2018) %>%
+  select(numgrade_2, apscore_full, apskipper, skipped, firstgen, lowincomflag, female, urm, 
+         hsgpa, mathsr, englsr, apyear) %>%
   filter(complete.cases(.))
 
 # Check balance before weighting
-bal.tab(PHYS1_SK ~ + FG + scale(LOW_INCOME) + FEMALE + URM +
-          scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-          YEAR_2016 + YEAR_2017 + YEAR_2018,
+bal.tab(skipped ~ + firstgen + scale(lowincomflag) + female + urm +
+          scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear),
         data = df_phys2_comp, estimand = "ATT", m.threshold = .05)
 
 # Estimate weights
-phys.out <- weightit(PHYS1_SK ~ FG + scale(LOW_INCOME) + FEMALE + URM +
-                       scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                       YEAR_2016 + YEAR_2017 + YEAR_2018,
+phys.out <- weightit(skipped ~ firstgen + scale(lowincomflag) + female + urm +
+                       scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear),
                      data = df_phys2_comp, estimand = "ATT")
 summary(phys.out) 
 
@@ -603,9 +471,8 @@ phys.w <- svydesign(ids = ~1, weights = phys.out$weights,
 
 # Model 2e.2: Grade for everyone (c.skipped, no score) ####
 #Bio
-m2e.2_BY <- svyglm(scale(BIO2_GPA) ~ BIO1_SK + FG + scale(LOW_INCOME) + FEMALE + URM +
-                     scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                     YEAR_2014 + YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, design = bio.w)
+m2e.2_BY <- svyglm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag) + female + urm +
+                     scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), design = bio.w)
 summary(m2e.2_BY)
 cbind("Beta" = coef(m2e.2_BY), confint.default(m2e.2_BY, level = 0.95))
 
@@ -614,9 +481,8 @@ summ(m2e.2_BY, confint = TRUE,
      model.fit = FALSE, model.info = FALSE) 
 
 #Chem
-m2e.2_CH <- svyglm(scale(GCHEM2_GPA) ~ GCHEM1_SK + FG + scale(LOW_INCOME) + FEMALE + URM +
-                     scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                     YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, design = chem.w)
+m2e.2_CH <- svyglm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag) + female + urm +
+                     scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), design = chem.w)
 summary(m2e.2_CH)
 cbind("Beta" = coef(m2e.2_CH), confint.default(m2e.2_CH, level = 0.95))
 
@@ -625,9 +491,8 @@ summ(m2e.2_CH, confint = TRUE,
      model.fit = FALSE, model.info = FALSE) 
 
 #Phys
-m2e.2_PH <- svyglm(scale(PHYS2_GPA) ~ PHYS1_SK + FG + scale(LOW_INCOME) + FEMALE + URM +
-                     scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                     YEAR_2016 + YEAR_2017 + YEAR_2018, design = phys.w)
+m2e.2_PH <- svyglm(scale(numgrade_2) ~ skipped + firstgen + scale(lowincomflag) + female + urm +
+                     scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), design = phys.w)
 summary(m2e.2_PH)
 cbind("Beta" = coef(m2e.2_PH), confint.default(m2e.2_PH, level = 0.95))
 
@@ -637,9 +502,8 @@ summ(m2e.2_PH, confint = TRUE,
 
 # Model 2g.2: Grade for everyone (c.skip eligible, no score) ####
 #Bio
-m2g.2_BY <- svyglm(scale(BIO2_GPA) ~ BIO1_TH + FG + scale(LOW_INCOME) + FEMALE + URM +
-                     scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                     YEAR_2014 + YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, design = bio.w)
+m2g.2_BY <- svyglm(scale(numgrade_2) ~ apskipper + firstgen + scale(lowincomflag) + female + urm +
+                     scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), design = bio.w)
 summary(m2g.2_BY)
 cbind("Beta" = coef(m2g.2_BY), confint.default(m2g.2_BY, level = 0.95))
 
@@ -647,9 +511,8 @@ summ(m2g.2_BY, confint = TRUE,
      model.fit = FALSE, model.info = FALSE) 
 
 #Chem
-m2g.2_CH <- svyglm(scale(GCHEM2_GPA) ~ GCHEM1_TH + FG + scale(LOW_INCOME) + FEMALE + URM +
-                     scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                     YEAR_2015 + YEAR_2016 + YEAR_2017 + YEAR_2018, design = chem.w)
+m2g.2_CH <- svyglm(scale(numgrade_2) ~ apskipper + firstgen + scale(lowincomflag) + female + urm +
+                     scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), design = chem.w)
 summary(m2g.2_CH)
 cbind("Beta" = coef(m2g.2_CH), confint.default(m2g.2_CH, level = 0.95))
 
@@ -658,9 +521,8 @@ summ(m2e.2_CH, confint = TRUE,
      model.fit = FALSE, model.info = FALSE) 
 
 #Phys
-m2e.2_PH <- svyglm(scale(PHYS2_GPA) ~ PHYS1_TH + FG + scale(LOW_INCOME) + FEMALE + URM +
-                     scale(HS_GPA) + scale(SAT_HIGH_MATH) + scale(SAT_HIGH_VERBAL) + 
-                     YEAR_2016 + YEAR_2017 + YEAR_2018, design = phys.w)
+m2e.2_PH <- svyglm(scale(numgrade_2) ~ apskipper + firstgen + scale(lowincomflag) + female + urm +
+                     scale(hsgpa) + scale(mathsr) + scale(englsr) + factor(apyear), design = phys.w)
 summary(m2e.2_PH)
 cbind("Beta" = coef(m2e.2_PH), confint.default(m2e.2_PH, level = 0.95))
 
@@ -672,100 +534,99 @@ summ(m2e.2_PH, confint = TRUE,
 #### PSM ####
 # Bio Matching ####
 # Covariates for PSM
-AP_bio_cov <- c('FEMALE', 'FG', 'LOW_INCOME', 'SAT_HIGH_VERBAL', 'HS_GPA', 'SAT_HIGH_MATH', 'YEAR_2015', 'YEAR_2016', 'YEAR_2017', 'YEAR_2018', 'BY')
+AP_bio_cov <- c('female', 'firstgen', 'lowincomflag', 'englsr', 'hsgpa', 'mathsr', 'cohort_2015', 'cohort_2016', 'cohort_2017', 'cohort_2018', 'apscore')
 
 # Estimate propensity score
-bio.psm <- glm(BIO1_SK ~ FEMALE + SAT_HIGH_VERBAL + SAT_HIGH_MATH + BY,
+bio.psm <- glm(skipped ~ female + englsr + mathsr + apscore,
                family = binomial(), data = df_bio2)
 
 # Create dataframe with propensity scores
 df_bio2_psm <- data.frame(pr_score = predict(bio.psm, type = "response"),
-                          BIO1_SK = bio.psm$model$BIO1_SK)
+                          skipped = bio.psm$model$skipped)
 
 # Matched dataset (no missing)
 df_bio2_nomiss <- df_bio2 %>%  
-  select(BIO2_GPA, BY, BIO1_SK, one_of(AP_cov)) %>%
+  select(numgrade_2, apscore, skipped, one_of(AP_cov)) %>%
   na.omit()
 
-bio_matched <- matchit(BIO1_SK ~ FEMALE + SAT_HIGH_VERBAL + SAT_HIGH_MATH + BY,
+bio_matched <- matchit(skipped ~ female + englsr + mathsr + apscore,
                        method = "nearest", data = df_bio2_nomiss)
 
 df_bio2_matched <- match.data(bio_matched)
 
 # Examine pre-matched and matched differences
 df_bio2 %>%
-  group_by(BIO1_SK) %>%
-  select(one_of(AP_cov), BY) %>%
+  group_by(skipped) %>%
+  select(one_of(AP_cov), apscore) %>%
   summarise_all(funs(mean(., na.rm = T)))
 
 df_bio2_matched %>%
-  group_by(BIO1_SK) %>%
-  select(one_of(AP_cov), BY) %>%
+  group_by(skipped) %>%
+  select(one_of(AP_cov), apscore) %>%
   summarise_all(funs(mean(., na.rm = T)))
-
 
 # Gchem Matching ####
 # Covariates for PSM
-AP_gchem_cov <- c('FEMALE', 'FG', 'LOW_INCOME', 'SAT_HIGH_VERBAL', 'HS_GPA', 'SAT_HIGH_MATH', 'YEAR_2015', 'YEAR_2016', 'YEAR_2017', 'YEAR_2018', 'CH')
+AP_gchem_cov <- c('female', 'firstgen', 'lowincomflag', 'englsr', 'hsgpa', 'mathsr', 'cohort_2015', 'cohort_2016', 'cohort_2017', 'cohort_2018', 'apscore')
 
 # Estimate propensity score
-gchem.psm <- glm(GCHEM1_SK ~ FEMALE + SAT_HIGH_VERBAL + SAT_HIGH_MATH + CH,
-                 family = binomial(), data = df_gchem2)
+gchem.psm <- glm(skipped ~ female + englsr + mathsr + apscore,
+                 family = binomial(), data = df_chem2)
 
 # Create dataframe with propensity scores
 df_gchem2_psm <- data.frame(pr_score = predict(gchem.psm, type = "response"),
-                            GCHEM1_SK = gchem.psm$model$GCHEM1_SK)
+                            skipped = gchem.psm$model$skipped)
 
 # Matched dataset (no missing)
-df_gchem2_nomiss <- df_gchem2 %>%  
-  select(GCHEM2_GPA, CH, GCHEM1_SK, one_of(AP_gchem_cov)) %>%
+df_gchem2_nomiss <- df_chem2 %>%  
+  select(numgrade_2, apscore, skipped, one_of(AP_gchem_cov)) %>%
   na.omit()
 
-gchem_matched <- matchit(GCHEM1_SK ~ FEMALE + SAT_HIGH_VERBAL + SAT_HIGH_MATH + CH,
+gchem_matched <- matchit(skipped ~ female + englsr + mathsr + apscore,
                          method = "nearest", data = df_gchem2_nomiss)
 
 df_gchem2_matched <- match.data(gchem_matched)
 
 # Examine pre-matched and matched differences
-df_gchem2 %>%
-  group_by(GCHEM1_SK) %>%
-  select(one_of(AP_gchem_cov), CH) %>%
+df_chem2 %>%
+  group_by(skipped) %>%
+  select(one_of(AP_gchem_cov), apscore) %>%
   summarise_all(funs(mean(., na.rm = T)))
 
 df_gchem2_matched %>%
-  group_by(GCHEM1_SK) %>%
-  select(one_of(AP_gchem_cov), CH) %>%
+  group_by(skipped) %>%
+  select(one_of(AP_gchem_cov), apscore) %>%
   summarise_all(funs(mean(., na.rm = T)))
 
 # Phys Matching ####
 # Covariates for PSM
-AP_phys_cov <- c('FEMALE', 'FG', 'LOW_INCOME', 'SAT_HIGH_VERBAL', 'HS_GPA', 'SAT_HIGH_MATH', 'YEAR_2015', 'YEAR_2016', 'YEAR_2017', 'YEAR_2018', 'PHCM')
+AP_phys_cov <- c('female', 'firstgen', 'lowincomflag', 'englsr', 'hsgpa', 'mathsr', 'cohort_2015', 'cohort_2016', 'cohort_2017', 'cohort_2018', 'apscore')
 
 # Estimate propensity score
-phys.psm <- glm(PHYS1_SK ~ FEMALE + SAT_HIGH_VERBAL + SAT_HIGH_MATH + PHCM,
+phys.psm <- glm(skipped ~ female + englsr + mathsr + apscore,
                 family = binomial(), data = df_phys2)
 
 # Create dataframe with propensity scores
 df_phys2_psm <- data.frame(pr_score = predict(phys.psm, type = "response"),
-                           PHYS1_SK = phys.psm$model$PHYS1_SK)
+                           skipped = phys.psm$model$skipped)
 
 # Matched dataset (no missing)
 df_phys2_nomiss <- df_phys2 %>%  
-  select(PHYS2_GPA, PHCM, PHYS1_SK, one_of(AP_cov)) %>%
+  select(numgrade_2, apscore, skipped, one_of(AP_cov)) %>%
   na.omit()
 
-phys_matched <- matchit(PHYS1_SK ~ FEMALE + SAT_HIGH_VERBAL + SAT_HIGH_MATH + PHCM,
+phys_matched <- matchit(skipped ~ female + englsr + mathsr + apscore,
                         method = "nearest", data = df_phys2_nomiss)
 
 df_phys2_matched <- match.data(phys_matched)
 
 # Examine pre-matched and matched differences
 df_phys2 %>%
-  group_by(PHYS1_SK) %>%
-  select(one_of(AP_cov), PHCM) %>%
+  group_by(skipped) %>%
+  select(one_of(AP_cov), apscore) %>%
   summarise_all(funs(mean(., na.rm = T)))
 
 df_phys2_matched %>%
-  group_by(PHYS1_SK) %>%
-  select(one_of(AP_cov), PHCM) %>%
+  group_by(skipped) %>%
+  select(one_of(AP_cov), apscore) %>%
   summarise_all(funs(mean(., na.rm = T)))
