@@ -25,7 +25,7 @@ VIF <- function(linear.model, no.intercept=FALSE, all.diagnostics=FALSE, plot=FA
 }
 
 # Load Raw Dataframe ####
-df_clean <- read.csv("~/Box Sync/LSAP_LRDC/Research Projects/SEISMIC/AP/SEISMIC_AP/SEISMIC_AP_CLEAN.csv")
+df_clean <- read.csv("SEISMIC_AP_CLEAN.csv")
 names(df_clean)
 
 # Subset Dataframes #### 
