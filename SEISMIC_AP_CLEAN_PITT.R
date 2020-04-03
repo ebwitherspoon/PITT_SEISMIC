@@ -272,8 +272,7 @@ df_ap_bio <- df_full %>%
   mutate(apscore_full = ifelse(is.na(BY), 0, BY)) %>%
   select(st_id, aptaker:apscore_full) %>%
   group_by(st_id) %>%
-  summarize_at(vars(-group_cols()),
-               max, na.rm = TRUE)
+  summarize_at(vars(-group_cols()),max)
 
 #Chem
 df_ap_chem <- df_full %>%
@@ -292,8 +291,7 @@ df_ap_chem <- df_full %>%
   mutate(apscore_full = ifelse(is.na(CH), 0, CH)) %>%
   select(st_id, aptaker:apscore_full) %>%
   group_by(st_id) %>%
-  summarize_at(vars(-group_cols()),
-               max, na.rm = TRUE)
+  summarize_at(vars(-group_cols()),max)
 
 #Phys
 df_ap_phys <- df_full %>%
@@ -321,8 +319,7 @@ df_ap_phys <- df_full %>%
   mutate(apscore_full = ifelse(is.na(apscore_full), 0, apscore_full)) %>%
   select(st_id, aptaker:apscore_full) %>%
   group_by(st_id) %>%
-  summarize_at(vars(-group_cols()),
-               max, na.rm = TRUE)
+  summarize_at(vars(-group_cols()),max)
 
 #### Create Stacked Dataset #### 
 # (STILL MISSING: gpao, begin_term_cum_gpa, instructor_name, apyear)
