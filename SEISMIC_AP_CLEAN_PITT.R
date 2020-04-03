@@ -10,7 +10,7 @@ pacman::p_load("tidyverse")
 select <- dplyr::select
 
 # Load FULL MERGED Dataframe ####
-df_full <- read.csv("2191_MATH_FULL.csv")     
+df_full <- read.csv("~/Box Sync/LSAP_LRDC/Research Projects/SEISMIC/AP/SEISMIC_AP/2191_MATH_FULL.csv")     
 df_full <- df_full %>%
   filter(CAMPUS_CD == "PIT")           # TOTAL N = 670191
 names(df_full)
