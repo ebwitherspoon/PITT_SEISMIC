@@ -332,9 +332,9 @@ df_bio <- df_std %>%
   right_join(df_crs_bio2, by = "st_id") %>%
   full_join(df_crs_bio1, by = "st_id") %>%
   full_join(df_ap_bio, by = "st_id") %>%
-  mutate(course = "BIO") %>%
+  mutate(discipline = "BIO") %>%
   mutate(skipped_1 = ifelse(tookcourse == 0 & tookcourse_2 == 1, 1, 0)) %>%
-  select(course, st_id:hsgpa, crs_sbj.x:current_major.x, crs_sbj.y:current_major.y, 
+  select(discipline, st_id:hsgpa, crs_sbj.x:current_major.x, crs_sbj.y:current_major.y, 
          aptaker, apscore, apscore_full, apskipper, 
          tookcourse, tookcourse_2, skipped_1) %>%
   filter(transfer == 0) %>%
@@ -346,9 +346,9 @@ df_chem <- df_std %>%
   right_join(df_crs_chem2, by = "st_id") %>%
   full_join(df_crs_chem1, by = "st_id") %>%
   full_join(df_ap_chem, by = "st_id") %>%
-  mutate(course = "CHEM") %>%
+  mutate(discipline = "CHEM") %>%
   mutate(skipped_1 = ifelse(tookcourse == 0 & tookcourse_2 == 1, 1, 0)) %>%
-  select(course, st_id:hsgpa, crs_sbj.x:current_major.x, crs_sbj.y:current_major.y, 
+  select(discipline, st_id:hsgpa, crs_sbj.x:current_major.x, crs_sbj.y:current_major.y, 
          aptaker, apscore, apscore_full, apskipper, 
          tookcourse, tookcourse_2, skipped_1) %>%
   filter(transfer == 0) %>%
@@ -360,9 +360,9 @@ df_phys <- df_std %>%
   right_join(df_crs_phys2, by = "st_id") %>%
   full_join(df_crs_phys1, by = "st_id") %>%
   full_join(df_ap_phys, by = "st_id") %>%
-  mutate(course = "PHYS") %>%
+  mutate(discipline = "PHYS") %>%
   mutate(skipped_1 = ifelse(tookcourse == 0 & tookcourse_2 == 1, 1, 0)) %>%
-  select(course, st_id:hsgpa, crs_sbj.x:current_major.x, crs_sbj.y:current_major.y, 
+  select(discipline, st_id:hsgpa, crs_sbj.x:current_major.x, crs_sbj.y:current_major.y, 
          aptaker, apscore, apscore_full, apskipper,
          tookcourse, tookcourse_2, skipped_1) %>%
   filter(transfer == 0) %>%
