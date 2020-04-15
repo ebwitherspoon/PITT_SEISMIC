@@ -385,4 +385,4 @@ rm(df_ap_bio, df_ap_chem, df_ap_phys,
    df_crs_bio1, df_crs_bio2, df_crs_chem1, df_crs_chem2, df_crs_phys1, df_crs_phys2,
    df_crs, df_std)
 
-write.csv(df_clean, file = "SEISMIC_AP_CLEAN.csv")
+write.csv(df_clean, file = "~/Box Sync/LSAP_LRDC/Research Projects/SEISMIC/AP/SEISMIC_AP/SEISMIC_AP_CLEAN.csv")
