@@ -10,7 +10,7 @@ pacman::p_load("tidyverse")
 select <- dplyr::select
 
 # Load FULL MERGED Dataframe ####
-df_full <- read.csv("~Box Sync/LSAP_LRDC/Research Projects/SEISMIC/AP/SEISMIC_AP/2191_MATH_FULL.csv")     
+df_full <- read.csv("~/Box Sync/LSAP_LRDC/Research Projects/SEISMIC/AP/SEISMIC_AP/2191_MATH_FULL.csv")     
 df_full <- df_full %>%
   filter(CAMPUS_CD == "PIT")           # TOTAL N = 670191
 names(df_full)
@@ -33,9 +33,9 @@ df_std <- df_full %>%
   mutate(international = if_else(CITIZENSHIP_STATUS_DESCR == "U.S. Citizen", 0, 1)) %>%
   mutate(ell = if_else(TOEFL_SCORE > 0, 0, 1)) %>%
   mutate(us_hs = if_else(is.na(HS_GPA), 0, 1)) %>%
-  separate(as.character("START_TRM_CD"), c("YEAR", "SEMESTER"), 3, remove = FALSE) %>%
-  separate(as.character("YEAR"), c("DEC", "YEAR"), 1) %>%
-  mutate(cohort = as.numeric(YEAR)) %>%
+  separate(as.character("START_TRM_CD"), c("st_YEAR", "st_SEMESTER"), 3, remove = FALSE) %>%
+  separate(as.character("st_YEAR"), c("st_DEC", "st_YEAR"), 1) %>%
+  mutate(cohort = as.numeric(st_YEAR)) %>%
   mutate(cohort = ifelse(cohort >= 20, cohort + 1900, cohort + 2000)) %>%
   mutate(cohort_2013 = ifelse(cohort == 2013, 1,0)) %>%
   mutate(cohort_2014 = ifelse(cohort == 2014, 1,0)) %>%
@@ -119,11 +119,15 @@ df_crs <- df_full %>%
   mutate(numgrade_w = if_else(COURSE_GRADE_CD == "W", 1, 0)) %>%
   mutate(crs_retake = REPEAT_CD) %>%
   mutate(crs_term	= TERM_CD) %>%
+  separate(as.character("TERM_CD"), c("crs_YEAR", "crs_SEMESTER"), 3, remove = FALSE) %>%
+  separate(as.character("crs_YEAR"), c("crs_DEC", "crs_YEAR"), 1) %>% 
+  mutate(crs_term_yr = crs_YEAR) %>%
+  mutate(crs_term_sem = crs_SEMESTER) %>%
   mutate(summer_crs = if_else(endsWith(as.character(TERM_CD),"7"), 1, 0)) %>%
   mutate(TERM_REF = START_TRM_CD-TERM_CD) %>%
-  separate(as.character("START_TRM_CD"), c("YEAR", "SEMESTER"), 3, remove = FALSE) %>%
-  separate(as.character("YEAR"), c("DEC", "YEAR"), 1) %>%
-  mutate(enrl_from_cohort = if_else(SEMESTER == "1" & TERM_REF == "0", 1,
+  separate(as.character("START_TRM_CD"), c("st_YEAR", "st_SEMESTER"), 3, remove = FALSE) %>%
+  separate(as.character("st_YEAR"), c("st_DEC", "st_YEAR"), 1) %>%
+  mutate(enrl_from_cohort = if_else(st_SEMESTER == "1" & TERM_REF == "0", 1,
                                     if_else(TERM_REF == -3, 1.5,
                                             if_else(TERM_REF == -6, 1.66,
                                                     if_else(TERM_REF == -10, 2,
@@ -135,7 +139,7 @@ df_crs <- df_full %>%
                                                                                                     if_else(TERM_REF == -30, 4,
                                                                                                             if_else(TERM_REF == -33, 4.5,
                                                                                                                     if_else(TERM_REF == -36, 4.66, 
-                                                                                                                            if_else(SEMESTER == "4" & TERM_REF == "0", 1,
+                                                                                                                            if_else(st_SEMESTER == "4" & TERM_REF == "0", 1,
                                                                                                                                     if_else(TERM_REF == -3, 1.5,
                                                                                                                                             if_else(TERM_REF == -7, 1.66,
                                                                                                                                                     if_else(TERM_REF == -10, 2,
@@ -147,7 +151,7 @@ df_crs <- df_full %>%
                                                                                                                                                                                                     if_else(TERM_REF == -30, 4,
                                                                                                                                                                                                             if_else(TERM_REF == -33, 4.5,
                                                                                                                                                                                                                     if_else(TERM_REF == -37, 4.66, 
-                                                                                                                                                                                                                            if_else(SEMESTER == "7" & TERM_REF == "0", 1,
+                                                                                                                                                                                                                            if_else(st_SEMESTER == "7" & TERM_REF == "0", 1,
                                                                                                                                                                                                                                     if_else(TERM_REF == -4, 1.5,
                                                                                                                                                                                                                                             if_else(TERM_REF == -7, 1.66,
                                                                                                                                                                                                                                                     if_else(TERM_REF == -10, 2,
