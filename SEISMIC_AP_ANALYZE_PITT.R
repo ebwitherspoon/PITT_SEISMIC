@@ -11,7 +11,7 @@ pacman::p_load("tidyverse", "data.table", "psych", "summarytools", "haven", "Hmi
 # Functions and settings ####
 # Use dplyr for 'select'
 select <- dplyr::select
-# Turn off scientific notation up to 10 digits
+# Turn off scientific notation
 options(scipen = 10)
 # VIF function 
 VIF <- function(linear.model, no.intercept=FALSE, all.diagnostics=FALSE, plot=FALSE) {
