@@ -4,6 +4,9 @@ if (!require("pacman")) install.packages("pacman")
 library(pacman)
 pacman::p_load("tidyverse")
 
+# Turn on scientific notation up to 10 digits
+options(scipen=999)
+
 # Load Clean Dataframe ####
 df_clean <- read.csv("~/Box Sync/LSAP_LRDC/Research Projects/SEISMIC/AP/SEISMIC_AP/SEISMIC_AP_CLEAN.csv")
 names(df_clean)
